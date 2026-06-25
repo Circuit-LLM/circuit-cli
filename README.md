@@ -1,6 +1,6 @@
-# circuit-cli
+<div align="center">
 
-> The command line for the **Circuit LLM** decentralized intelligence network.
+# circuit-cli
 
 ```
  ██████╗██╗██████╗  ██████╗██╗   ██╗██╗████████╗
@@ -12,63 +12,185 @@
         L L M  ·  decentralized intelligence
 ```
 
-A fast, beautiful terminal console for the Circuit ecosystem — chat with the
-decentralized 72B, manage the CIRC that pays for it, watch the mesh and the
-agent swarm, query on-chain data, and contribute a GPU, all from one place.
+**The command line for the Circuit LLM decentralized intelligence network. Chat with the decentralized 72B, manage the CIRC that pays for it, watch the mesh and the agent swarm, query on-chain data, and contribute a GPU — all from one beautiful terminal.**
 
-## Install
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue)](https://github.com/Circuit-LLM/circuit-cli/releases)
+[![Status](https://img.shields.io/badge/status-beta-orange)](https://github.com/Circuit-LLM/circuit-cli)
+[![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+
+> **Beta software.** circuit-cli is under active development. Expect breaking changes between releases, incomplete features, and rough edges. Chat spends real CIRC — start small until you're comfortable with how it behaves.
+
+[Website](https://circuitllm.xyz) · [OPS Terminal](https://circuitllm.xyz/data) · [Telegram](https://t.me/circuitllm) · [X / Twitter](https://x.com/CircuitLLM)
+
+</div>
+
+---
+
+**[What it does](#what-it-does)** · **[Quick Start](#quick-start)** · **[Connect a wallet](#connect-a-wallet)** · **[Chat](#chat--paying-with-circ)** · **[Commands](#commands)** · **[Modules](#modules)** · **[Config](#configuration)** · **[How it works](#how-it-works)** · **[Docs](#docs)**
+
+---
+
+## What it does
+
+- **Chats with the decentralized 72B** — stream completions from Circuit's model, served across a mesh of independent GPUs and paid per request in CIRC via x402. One-shot, piped, or a full interactive REPL with a live cost meter.
+- **Manages your CIRC** — SOL + CIRC (Token-2022) balances, transfers, and SOL↔CIRC swaps via Jupiter. Connect a key, generate a fresh one, or run read-only against any address.
+- **Watches the network** — Solana throughput, the inference gateway's health, and a one-glance `doctor` that checks every service in the ecosystem.
+- **Follows the swarm** — the autonomous trading agents' stats, leaderboard, and a live feed of buy/sell signals, straight from the public registry.
+- **Reads the market** — token price, liquidity, trending lists, dip scanner, and **braille candle charts** rendered right in the terminal.
+- **Onboards a GPU** — the one-line command to attach a machine to the mesh and earn from the inference it serves.
+- **Looks and feels good** — a gradient splash, aligned panels, and a keyboard-driven menu. The design system is a first-class concern, not an afterthought.
+
+---
+
+## Before you start
+
+| What | Why | Where |
+|------|-----|-------|
+| **Node.js ≥ 18** | Runtime (uses native `fetch`) | [nodejs.org](https://nodejs.org) |
+| **A Solana wallet** | Sign chat payments, send & swap | Generate one in-app (`circuit wallet generate`) or import an existing key |
+| **CIRC + a little SOL** | Chat pays ~$0.03 in CIRC per request; SOL covers tx fees | Earn it, swap for it (`circuit wallet swap`), or buy on Pump.fun |
+
+Read-only features (market data, the swarm, network health) need **no wallet at all**.
+
+> **CIRC token CA:** `8fQgfsRnRkKSeNUhevT7wp8mhNvMSJdLn1fJi4oVpump`
+> **Buy on Pump.fun:** [pump.fun/coin/8fQgfsRnRkKSeNUhevT7wp8mhNvMSJdLn1fJi4oVpump](https://pump.fun/coin/8fQgfsRnRkKSeNUhevT7wp8mhNvMSJdLn1fJi4oVpump)
+
+---
+
+## Quick Start
 
 ```bash
-git clone https://github.com/Circuit-LLM/circuit-cli.git
+git clone https://github.com/Circuit-LLM/circuit-cli
 cd circuit-cli
 npm install
-npm link        # optional — exposes the `circuit` command globally
+npm link                 # optional — exposes `circuit` globally
+
+circuit                  # open the interactive console
 ```
 
-Requires Node.js ≥ 18.
-
-## Usage
+Or jump straight to anything:
 
 ```bash
-circuit                       # interactive console (splash + menu)
-circuit chat "explain x402"   # one-shot chat (streams), or pipe stdin
-circuit data trending         # live trending tokens
-circuit data token <mint>     # price + braille candle chart
-circuit swarm                 # the agent swarm at a glance
-circuit network               # Solana + DLLM mesh health
-circuit status doctor         # connectivity check to every service
-circuit node join             # the one-line GPU onboarding command
+circuit chat "explain x402 in one line"
+circuit data token 8fQgfsRnRkKSeNUhevT7wp8mhNvMSJdLn1fJi4oVpump
+circuit swarm
+circuit status doctor
 circuit --help
 ```
 
-## Modules
+---
 
-| Module    | What it does                                   | Status |
-| --------- | ---------------------------------------------- | ------ |
-| `chat`    | Stream the decentralized 72B, paid in CIRC     | live   |
-| `wallet`  | SOL + CIRC balances, send, swap (Jupiter)      | live   |
-| `data`    | Token price/liquidity, trending, dips, charts  | live   |
-| `swarm`   | Autonomous trading agents — stats & signals    | live   |
-| `network` | Solana TPS + inference gateway health          | live   |
-| `node`    | One-command GPU onboarding to the mesh          | live   |
-| `status`  | One-glance dashboard + `doctor` health check   | live   |
-| `about`   | About the Circuit network                       | live   |
+## Connect a wallet
 
-## Chat & payments
+The CLI signs transactions with a local Solana keypair. It loads one in this order:
 
-Chat runs inference through the Circuit gateway and pays **CIRC via x402**
-(~$0.03 / request). Load a signing wallet to enable it:
+1. **`CIRCUIT_WALLET`** environment variable — a base58 secret key (nothing written to disk)
+2. **`~/.circuit/id.json`** — a standard Solana keypair file (`0600`, owner-only)
+
+The friendly way:
 
 ```bash
-export CIRCUIT_WALLET=<base58-secret-key>   # or place a keypair at ~/.circuit/id.json
+circuit wallet import      # paste a base58 key (hidden) → saved to ~/.circuit/id.json
+circuit wallet generate    # create a fresh keypair, with a one-time secret reveal for backup
+circuit wallet address     # show the loaded wallet
+circuit wallet balance     # SOL + CIRC
 ```
 
-No secret is ever printed or logged. Transfers, swaps and paid chat always show
-what will happen before they run.
+Read-only? Pass an address — no key needed:
 
-## Architecture
+```bash
+circuit wallet balance <pubkey>
+```
 
-Three layers, one rule — `services` talk, `ui` draws, `modules` glue:
+> Your secret key is **never printed or logged**. Sends, swaps, and paid chat always confirm before acting. See **[SECURITY.md](SECURITY.md)**.
+
+---
+
+## Chat — paying with CIRC
+
+Chat runs inference through the Circuit gateway and settles in CIRC over **x402**: the gateway answers `402` with a payment requirement, the CLI transfers CIRC to the treasury, then retries with the payment signature and streams the reply. Roughly **$0.03 per request**.
+
+```bash
+circuit chat                              # interactive REPL
+circuit chat "what is a falling knife?"   # one-shot, streams
+cat error.log | circuit chat "debug this" # pipe stdin
+circuit chat --json "..."                 # raw JSON (scriptable)
+circuit chat --system "be terse" "..."    # override the system prompt
+circuit chat --models                     # list available models
+```
+
+Every turn prints a cost meter — the CIRC spent, the USD equivalent, and the payment transaction:
+
+```
+circuit › Circuit LLM is a decentralized intelligence network…
+  ↯ 361.00 CIRC  ·  $0.03  ·  tx 2zgfAS…qb44
+```
+
+---
+
+## Commands
+
+| Command | What it does |
+|---------|--------------|
+| `circuit` | Interactive console (splash + menu) |
+| `circuit chat [prompt]` | DLLM chat — REPL, one-shot, or piped; `--json --model --temp --system --max-tokens --models` |
+| `circuit wallet` | Balances, receive, send, swap (interactive) |
+| `circuit wallet import \| generate \| address \| balance [addr]` | Wallet setup & queries |
+| `circuit data trending \| dips \| token <mint>` | Market data + braille charts |
+| `circuit swarm` · `swarm feed` | Trading-swarm stats, leaderboard, live signals |
+| `circuit network` · `network watch` | Solana + inference-gateway health |
+| `circuit node join` | One-line GPU onboarding |
+| `circuit status` · `status doctor` | Dashboard + connectivity check |
+| `circuit about` | About the Circuit network |
+
+Full reference: **[docs/commands.md](docs/commands.md)**.
+
+---
+
+## Modules
+
+| Module | What it does | Wallet | Status |
+|--------|--------------|:------:|--------|
+| `chat` | Stream the decentralized 72B, paid in CIRC | required | live |
+| `wallet` | SOL + CIRC balances, send, swap | required | live |
+| `data` | Token price/liquidity, trending, dips, charts | — | live |
+| `swarm` | Autonomous agents — stats & live signals | — | live |
+| `network` | Solana TPS + inference-gateway health | — | live |
+| `node` | One-command GPU onboarding | — | live |
+| `status` | One-glance dashboard + `doctor` | — | live |
+| `about` | About the Circuit network | — | live |
+
+The swarm registry is served publicly from `api.circuitllm.xyz`. Some market/network data is x402-gated by the network and may require the paid data API away from the coordinator host — see **[docs/configuration.md](docs/configuration.md#endpoints)**.
+
+---
+
+## Configuration
+
+User config lives at `~/.circuit/config.json` (created on demand):
+
+```json
+{
+  "rpcUrl": "https://your-rpc-provider",
+  "inferenceModel": "circuit",
+  "output": "pretty"
+}
+```
+
+Environment overrides:
+
+| Variable | Purpose |
+|----------|---------|
+| `CIRCUIT_WALLET` | base58 secret key (takes precedence over the keyfile) |
+| `CIRCUIT_RPC_URL` | Solana RPC endpoint (public RPCs rate-limit — set your own for heavy use) |
+
+Full details — endpoints, the system prompt, RPC fallback — in **[docs/configuration.md](docs/configuration.md)**.
+
+---
+
+## How it works
+
+Three layers, one rule — **`services` talk, `ui` draws, `modules` glue:**
 
 ```
 src/
@@ -80,9 +202,29 @@ src/
   util/      format
 ```
 
-Adding a feature = one `services` method + one `modules` screen + a line in
-`core/registry.js`. See [SPEC.md](SPEC.md) for the full design.
+`core/registry.js` is the single source of truth — both the interactive menu and the command verbs are generated from it, so they never drift. Adding a feature is one `services` method + one `modules` screen + a line in the registry. The full design is in **[ARCHITECTURE.md](ARCHITECTURE.md)** and **[SPEC.md](SPEC.md)**.
+
+---
+
+## Docs
+
+- **[SPEC.md](SPEC.md)** — the design spec & build plan
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — the layered architecture in depth
+- **[docs/commands.md](docs/commands.md)** — full command reference
+- **[docs/configuration.md](docs/configuration.md)** — config, wallet, endpoints, RPC
+- **[SECURITY.md](SECURITY.md)** — wallet & key safety
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — add a module or a service
+
+---
+
+## Community
+
+[Website](https://circuitllm.xyz) · [OPS Terminal](https://circuitllm.xyz/data) · [Telegram](https://t.me/circuitllm) · [X / Twitter](https://x.com/CircuitLLM)
+
+Part of the Circuit ecosystem — alongside [circuit-agent](https://github.com/Circuit-LLM/circuit-agent) (the trading swarm) and the decentralized DLLM engine.
+
+---
 
 ## License
 
-MIT © Circuit LLM
+MIT © Circuit LLM — see [LICENSE](LICENSE).

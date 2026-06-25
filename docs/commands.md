@@ -1,0 +1,127 @@
+# Command Reference
+
+Run `circuit` with no arguments for the interactive console, or any verb below to jump straight to it. Every screen is also reachable from the menu.
+
+```bash
+circuit            # interactive console
+circuit <verb>     # run one thing
+circuit --help     # list everything
+circuit --version
+```
+
+---
+
+## chat
+
+Talk to the decentralized 72B. Paid in CIRC via x402 (~$0.03 / request) — needs a [connected wallet](configuration.md#wallet).
+
+```bash
+circuit chat                      # interactive streaming REPL (/exit to leave)
+circuit chat "your prompt"        # one-shot, streams to stdout
+cat file.txt | circuit chat "summarize this"
+```
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Output raw JSON (non-streaming) — scriptable |
+| `-m, --model <id>` | Model id (default: `circuit`) |
+| `-t, --temp <n>` | Temperature |
+| `-s, --system <prompt>` | Override the default Circuit system prompt |
+| `--max-tokens <n>` | Max tokens to generate |
+| `--models` | List available models and exit |
+
+Each turn prints a cost meter: `↯ <amount> CIRC · $<usd> · tx <sig>`.
+
+---
+
+## wallet
+
+Balances and transfers. The signing key loads from `CIRCUIT_WALLET` or `~/.circuit/id.json` ([details](configuration.md#wallet)).
+
+```bash
+circuit wallet                    # interactive (balances, receive, send, swap, connect)
+circuit wallet balance [address]  # SOL + CIRC; pass an address for read-only
+circuit wallet import             # paste a base58/byte-array key → saved 0600
+circuit wallet generate           # create a fresh keypair (one-time secret reveal)
+circuit wallet address            # show the loaded address
+```
+
+Inside the interactive screen you can also **send** (CIRC or SOL) and **swap** (SOL ↔ CIRC via Jupiter) — both confirm the amount before signing.
+
+---
+
+## data
+
+On-chain market intelligence.
+
+```bash
+circuit data                      # interactive (trending / dips / lookup)
+circuit data trending             # most active tokens, priced
+circuit data dips                 # tokens pulling back now (5m)
+circuit data token <mint>         # price, liquidity, and a braille candle chart
+```
+
+> Some market data is x402-gated by the network and is free only on the coordinator host — see [endpoints](configuration.md#endpoints).
+
+---
+
+## swarm
+
+The autonomous trading agents, from the public registry at `api.circuitllm.xyz`.
+
+```bash
+circuit swarm                     # stats, leaderboard, recent signals
+circuit swarm feed                # the live signal feed
+```
+
+---
+
+## network
+
+Chain + mesh health.
+
+```bash
+circuit network                   # Solana TPS/version + inference-gateway status
+circuit network watch             # live-refreshing view (Ctrl-C to exit)
+```
+
+---
+
+## node
+
+Contribute a GPU to the mesh.
+
+```bash
+circuit node            # what joining does + the one-line installer
+circuit node join       # show the install command
+```
+
+---
+
+## status
+
+Cross-cutting views.
+
+```bash
+circuit status          # one-glance dashboard: mesh, model, CIRC price, wallet
+circuit status doctor   # connectivity check across every service (with latencies)
+```
+
+`doctor` is the fastest way to confirm everything is reachable:
+
+```
+● Inference gateway  259ms
+● circuit-node  7ms
+● price-feed  65ms
+● Data gateway  11ms
+● Solana RPC  45ms
+```
+
+---
+
+## about · menu
+
+```bash
+circuit about     # about the Circuit network
+circuit menu      # open the interactive console (same as bare `circuit`)
+```
