@@ -27,7 +27,7 @@
 
 ---
 
-**[What it does](#what-it-does)** · **[Quick Start](#quick-start)** · **[Connect a wallet](#connect-a-wallet)** · **[Chat](#chat--paying-with-circ)** · **[Commands](#commands)** · **[Modules](#modules)** · **[Config](#configuration)** · **[How it works](#how-it-works)** · **[Docs](#docs)**
+**[What it does](#what-it-does)** · **[Quick Start](#quick-start)** · **[Connect a wallet](#connect-a-wallet)** · **[Chat](#chat--x402-made-visible)** · **[Commands](#commands)** · **[Modules](#modules)** · **[Config](#configuration)** · **[How it works](#how-it-works)** · **[Docs](#docs)**
 
 ---
 
@@ -107,9 +107,18 @@ circuit wallet balance <pubkey>
 
 ---
 
-## Chat — paying with CIRC
+## Chat — x402, made visible
 
-Chat runs inference through the Circuit gateway and settles in CIRC over **x402**: the gateway answers `402` with a payment requirement, the CLI transfers CIRC to the treasury, then retries with the payment signature and streams the reply. Roughly **$0.03 per request**.
+Chat is the easiest way to **watch x402 work**. x402 revives HTTP's long-dormant `402 Payment Required` status as a real micropayment protocol: instead of an API key and a monthly bill, each request pays for itself, on-chain, per call. The whole Circuit network runs on it — chat just makes the handshake something you can see, turn by turn.
+
+Every message runs the full loop:
+
+| Step | What happens |
+|------|--------------|
+| **1 · Ask** | The CLI `POST`s your prompt to the inference gateway with **no payment**. |
+| **2 · 402** | The gateway replies `402 Payment Required` with the price — an amount of **CIRC** and the treasury address to send it to. |
+| **3 · Pay** | The CLI transfers that CIRC to the treasury on Solana (CIRC is a Token-2022 mint) and gets a transaction signature. |
+| **4 · Retry** | It re-sends the request with `X-Payment-Signature: <txSig>`. The gateway verifies the on-chain payment and streams the model's reply. |
 
 ```bash
 circuit chat                              # interactive REPL
@@ -120,12 +129,14 @@ circuit chat --system "be terse" "..."    # override the system prompt
 circuit chat --models                     # list available models
 ```
 
-Every turn prints a cost meter — the CIRC spent, the USD equivalent, and the payment transaction:
+The last line of every turn is your **receipt** — the CIRC spent, the dollar value, and the on-chain transaction you can look up:
 
 ```
 circuit › Circuit LLM is a decentralized intelligence network…
   ↯ 361.00 CIRC  ·  $0.03  ·  tx 2zgfAS…qb44
 ```
+
+No accounts, no keys, no invoices — the request paid for itself (~$0.03). Because the same pattern powers the rest of the network (the data API charges identically), the chat doubles as a **reference implementation**: the generic pay-and-retry lives in [`src/services/x402.js`](src/services/x402.js), the streaming version in [`src/services/inference.js`](src/services/inference.js), and the full request lifecycle is diagrammed in [ARCHITECTURE.md](ARCHITECTURE.md#a-request-paid-chat-x402).
 
 ---
 
