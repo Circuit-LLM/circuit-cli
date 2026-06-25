@@ -53,7 +53,8 @@ src/
 | Inference (DLLM) | `inference.circuitllm.xyz/v1` | **x402** (CIRC) | ✅ public — `/models` open, `/chat/completions` → 402 |
 | Node onboarding | `circuitllm.xyz/join` | none | ✅ public installer |
 | x402 data gateway | `api.circuitllm.xyz` | x402 | ✅ public (`/health`, `/api/quote`, `/api/status`) |
-| circuit-node | `:18940` (local) | none | 🟢 `/api/network`, `/api/swarm/*`, `/api/trending` — VPS-local, needs public route to ship widely |
+| circuit-node swarm | `api.circuitllm.xyz/api/swarm/*` | none | ✅ public — read-only, GET-only, rate-limited (nginx → `:18940`) |
+| circuit-node data | `:18940` (local) | x402 off-host | 🟢 `/api/network`, `/api/trending` free on the VPS; **x402-gated for non-localhost** (intentionally monetized) |
 | price-feed | `:18941` (local) | none | 🟢 `/prices /candles /active /slippage /token` |
 | Solana | public RPC + config override | none | ✅ balances, transfers, swap |
 

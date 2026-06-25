@@ -40,8 +40,10 @@ const DEFAULTS = {
     data: 'https://api.circuitllm.xyz',
     join: 'https://circuitllm.xyz/join',
     health: 'https://circuitllm.xyz',
-    // VPS-local services (used when running on the coordinator host). The public
-    // mirrors land behind api.circuitllm.xyz as routes are exposed.
+    // circuit-node: the public swarm registry is served at api.circuitllm.xyz
+    // (free, read-only). Market/network data is x402-gated for non-localhost, so
+    // it is only free on the coordinator host via the local port.
+    nodePublic: 'https://api.circuitllm.xyz',
     node: 'http://localhost:18940',
     priceFeed: 'http://localhost:18941',
   },
