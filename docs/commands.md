@@ -96,7 +96,9 @@ circuit agent destroy <name> [--yes]
 
 ### Custody
 
-A `--cloud` agent's signing key lives **off-box** in the signer, never on the operator that runs it. On create you get a **wallet address** — fund it, then start. The agent can only trade by asking custody to sign, and the signer enforces your policy (max SOL per trade/day, cooldown) and signs `buy`/`sell` only — funds can never leave the wallet through the agent, so a host can't drain it. `status` shows the wallet, the limits, and `paper`/`LIVE`. Agents run **paper** until you create them with `--live`.
+A `--cloud` agent's signing key lives **off-box** in the signer, never on the operator that runs it. On create you get a **wallet address** — fund it, then start. The agent can only trade by asking custody to sign, and the signer enforces your policy (max SOL per trade/day, cooldown) and signs `buy`/`sell` only — funds can never leave the wallet through the agent, so a host can't drain it. `status` shows the wallet, the limits, and `paper`/`LIVE`.
+
+Agents run **paper** until you create them with `--live`. A live agent's trades are built by the signer from the approved intent (taker = its own wallet), signed with the off-box key, and landed via **Jupiter Ultra** — so the host never touches the key and the signer only ever signs a swap of the agent's own funds. Fund the wallet before going live.
 
 ### Contribute capacity (operator)
 
