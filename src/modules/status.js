@@ -52,7 +52,7 @@ async function dashboard(ctx, standalone) {
             kv('Agents', c.text(`${a.total ?? '—'} total · ${a.active1h ?? 0} active`)),
             kv('Signals', c.text(`${num(s.total, 0)} · ${s.last1h ?? 0}/h`)),
           ].join('\n'),
-          { title: 'SWARM', color: palette.indigo },
+          { title: 'SWARM', color: palette.amber },
         ),
       );
       console.log('');

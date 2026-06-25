@@ -22,7 +22,7 @@ function aboutPanel() {
     boxen(body, {
       padding: { top: 1, bottom: 1, left: 3, right: 3 },
       borderStyle: 'round',
-      borderColor: palette.cyan,
+      borderColor: palette.gold,
       title: c.accent.bold('ABOUT'),
       titleAlignment: 'left',
     }),

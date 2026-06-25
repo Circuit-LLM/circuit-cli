@@ -3,29 +3,29 @@
 import chalk from 'chalk';
 import gradient from 'gradient-string';
 
+// Circuit brand — warm gold/yellow on near-black, matching the dashboards and
+// circuitllm.xyz. The signature is electric yellow (#ffe000); gold and bright
+// flank it for accents and glow.
 export const palette = {
-  teal: '#2DD4BF',
-  cyan: '#22D3EE',
-  sky: '#38BDF8',
-  blue: '#3B82F6',
-  indigo: '#6366F1',
-  violet: '#8B5CF6',
-  green: '#34D399',
-  amber: '#FBBF24',
-  red: '#F87171',
-  text: '#E2E8F0',
-  muted: '#94A3B8',
-  dim: '#64748B',
+  gold: '#dcb820', // primary accent
+  yellow: '#ffe000', // signature / high-emphasis
+  bright: '#ffe880', // glow / gradient tip
+  amber: '#ffa42a', // secondary warm accent
+  green: '#8ada6e',
+  red: '#ff5c5c',
+  text: '#efe4b4', // warm cream
+  muted: '#cabb7e',
+  dim: '#5a4e1a',
 };
 
-// The signature Circuit gradient: teal → cyan → indigo (electric, on-brand).
-export const brand = gradient([palette.teal, palette.cyan, palette.indigo]);
-export const brandAlt = gradient([palette.cyan, palette.violet]);
+// The signature Circuit gradient: gold → yellow → bright (a glowing-gold sweep).
+export const brand = gradient([palette.gold, palette.yellow, palette.bright]);
+export const brandAlt = gradient([palette.bright, palette.amber]);
 export const grad = (...stops) => gradient(stops);
 
 // Semantic colours.
 export const c = {
-  accent: chalk.hex(palette.cyan),
+  accent: chalk.hex(palette.gold),
   text: chalk.hex(palette.text),
   muted: chalk.hex(palette.muted),
   dim: chalk.hex(palette.dim),

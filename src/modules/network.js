@@ -43,7 +43,7 @@ function render({ net, models, ping }) {
     kv('Endpoint', c.accent('inference.circuitllm.xyz')),
     kv('Payment', c.text('CIRC · x402')),
   ].join('\n');
-  console.log(panel(infBody, { title: 'DLLM MESH', color: palette.indigo }));
+  console.log(panel(infBody, { title: 'DLLM MESH', color: palette.amber }));
 }
 
 async function show(ctx, standalone) {

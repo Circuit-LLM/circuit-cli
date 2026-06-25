@@ -7,7 +7,7 @@ import { width, padEndV } from './layout.js';
 // Pill badge.
 export function badge(text, kind = 'accent') {
   const map = {
-    accent: chalk.bgHex(palette.cyan).black,
+    accent: chalk.bgHex(palette.gold).black,
     ok: chalk.bgHex(palette.green).black,
     warn: chalk.bgHex(palette.amber).black,
     err: chalk.bgHex(palette.red).black,
@@ -22,7 +22,7 @@ export function statusDot(ok, label) {
 }
 
 // Rounded, titled panel.
-export function panel(body, { title, color = palette.cyan, padding } = {}) {
+export function panel(body, { title, color = palette.gold, padding } = {}) {
   return boxen(body, {
     padding: padding ?? { top: 1, bottom: 1, left: 3, right: 3 },
     borderStyle: 'round',

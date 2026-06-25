@@ -26,7 +26,7 @@ function infoPanel(status) {
     boxen(body, {
       padding: { top: 1, bottom: 1, left: 3, right: 3 },
       borderStyle: 'round',
-      borderColor: palette.indigo,
+      borderColor: palette.amber,
       title: c.accent.bold('SYSTEM'),
       titleAlignment: 'left',
     }),

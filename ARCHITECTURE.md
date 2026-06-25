@@ -124,4 +124,4 @@ That line wires the feature into the menu and the CLI verbs at once. See [CONTRI
 
 ## Design system
 
-`src/theme.js` is the single re-skin point — palette, the `teal → cyan → indigo` brand gradient, semantic colours, and the glyph set. One constraint: **every glyph must be width-1** (a width-2 glyph like `⚡` desyncs `boxen`'s border math). New glyphs are checked against `string-width`.
+`src/theme.js` is the single re-skin point — palette, the `gold → yellow → bright` brand gradient (warm gold, matching the Circuit dashboards), semantic colours, and the glyph set. One constraint: **every glyph must be width-1** (a width-2 glyph like `⚡` desyncs `boxen`'s border math). New glyphs are checked against `string-width`.
