@@ -76,6 +76,38 @@ circuit swarm feed                # the live signal feed
 
 ---
 
+## agent
+
+Launch autonomous agents and run them locally or on the **agent cloud** (the Circuit mesh's spare CPU). Requires the [circuit-agent-cloud](https://github.com/Circuit-LLM/circuit-agent-cloud) services for the cloud path.
+
+```bash
+circuit agent                       # interactive dashboard
+circuit agent create <name>         # create (local by default)
+circuit agent create <name> --cloud # ...or host it on the mesh
+circuit agent start <name>          # start it
+circuit agent list                  # status, P&L, where it runs
+circuit agent status <name>         # detail + paper P&L
+circuit agent logs <name> [--tail n]
+circuit agent stop <name>
+circuit agent destroy <name> [--yes]
+```
+
+`create` options: `--cloud`, `--workload <agentd|circuit-agent>`, `--interval <ms>`, `--strategy <s>`. Agents run in paper mode by default — fund a wallet before going live.
+
+### Contribute capacity (operator)
+
+Lend spare CPU to the cloud and host other users' agents — opt-in, bounded, revocable:
+
+```bash
+circuit agent host --max-agents 20   # start contributing (default off)
+circuit agent host --status
+circuit agent host --off             # drain + stop
+```
+
+Point at a control plane with `CIRCUIT_CONTROL_PLANE=<url>`. See the [agent-cloud spec](agent-cloud-spec.md).
+
+---
+
 ## network
 
 Chain + mesh health.

@@ -35,6 +35,10 @@ const DEFAULTS = {
     'Be concise, accurate, and genuinely helpful.',
   rpcUrl: 'https://api.mainnet-beta.solana.com',
   output: 'pretty', // 'pretty' | 'json'
+  // Agent cloud: where the control plane lives, and where the cloud service +
+  // reference workload are installed (for the local driver and `agent host`).
+  agentCloudDir: process.env.CIRCUIT_AGENT_CLOUD_DIR || path.join(os.homedir(), 'circuit-agent-cloud'),
+  circuitAgentDir: process.env.CIRCUIT_AGENT_DIR || path.join(os.homedir(), 'circuit-agent'),
   endpoints: {
     inference: 'https://inference.circuitllm.xyz/v1',
     data: 'https://api.circuitllm.xyz',
@@ -46,6 +50,8 @@ const DEFAULTS = {
     nodePublic: 'https://api.circuitllm.xyz',
     node: 'http://localhost:18940',
     priceFeed: 'http://localhost:18941',
+    // Agent cloud control plane. Set CIRCUIT_CONTROL_PLANE to the public URL to ship widely.
+    controlPlane: process.env.CIRCUIT_CONTROL_PLANE || 'http://127.0.0.1:18980',
   },
   links: {
     web: 'https://circuitllm.xyz',

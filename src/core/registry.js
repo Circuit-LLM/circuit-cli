@@ -4,12 +4,13 @@ import chat from '../modules/chat.js';
 import wallet from '../modules/wallet.js';
 import data from '../modules/data.js';
 import swarm from '../modules/swarm.js';
+import agent from '../modules/agent.js';
 import network from '../modules/network.js';
 import node from '../modules/node.js';
 import status from '../modules/status.js';
 import about from '../modules/about.js';
 
-export const modules = [chat, wallet, data, swarm, network, node, status, about];
+export const modules = [chat, wallet, data, swarm, agent, network, node, status, about];
 
 // Build `circuit <id>` for each module (default action = its screen), then let
 // the module attach any sub-verbs / options.

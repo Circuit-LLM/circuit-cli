@@ -152,6 +152,8 @@ No accounts, no keys, no invoices — the request paid for itself (~$0.03). Beca
 | `circuit wallet import \| generate \| address \| balance [addr]` | Wallet setup & queries |
 | `circuit data trending \| dips \| token <mint>` | Market data + braille charts |
 | `circuit swarm` · `swarm feed` | Trading-swarm stats, leaderboard, live signals |
+| `circuit agent create \| start \| stop \| list \| status \| logs \| destroy` | Launch & manage agents (local or on the mesh) |
+| `circuit agent host` | Contribute CPU capacity to the agent cloud (operator) |
 | `circuit network` · `network watch` | Solana + inference-gateway health |
 | `circuit node join` | One-line GPU onboarding |
 | `circuit status` · `status doctor` | Dashboard + connectivity check |
@@ -169,6 +171,7 @@ Full reference: **[docs/commands.md](docs/commands.md)**.
 | `wallet` | SOL + CIRC balances, send, swap | required | live |
 | `data` | Token price/liquidity, trending, dips, charts | — | live |
 | `swarm` | Autonomous agents — stats & live signals | — | live |
+| `agent` | Launch & host autonomous agents (local or the mesh cloud) | optional | live |
 | `network` | Solana TPS + inference-gateway health | — | live |
 | `node` | One-command GPU onboarding | — | live |
 | `status` | One-glance dashboard + `doctor` | — | live |
