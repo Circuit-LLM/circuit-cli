@@ -5,8 +5,19 @@
 > on their own terms and earn CIRC for it. Inference stays on the GPUs; agents
 > live on the CPUs that hang off the same node-clients.
 
-**Status:** draft / RFC · **Scope:** CLI + node-client + a thin control plane ·
+**Status:** built (alpha) · **Scope:** CLI + node-client + a thin control plane ·
 **Token of account:** CIRC (x402)
+
+---
+
+## 0. Revision — what was built (supersedes the tiered/toll design below)
+
+The system is implemented in **[circuit-agent-cloud](https://github.com/Circuit-LLM/circuit-agent-cloud)** and driven by `circuit agent`. Two simplifications were made versus the original RFC, and the code follows the simplified model:
+
+1. **Custody is ONE mechanism, not a spectrum.** Every agent uses the **off-box signer**: the signing key is generated and held by the signer service, sealed at rest (AES-256-GCM), and **never** reaches the operator node — which only ever gets a scoped, rotating **session token**. The signer's verbs are `buy | sell` only (no transfer/withdraw), so funds can never leave the agent wallet through the autonomous path; the worst a rogue operator can do is an in-policy swap. This is §8's **T2 off-box signer**, made the single path. The tiers (T0 key-on-node / T1 Allowance / T3 TEE) are **not** exposed — a later MPC or TEE signer can sit behind the *same* API with no change to agents or hosts.
+2. **No hosting toll.** Hosting is not metered or charged in v1. §10 (payments/toll) is **not implemented** and is out of scope for now.
+
+The **at-most-one fence** (§9) is built into the signer: a session carries a monotonic epoch; opening a new one on reschedule supersedes the old, so a crashed node's orphan is fenced out (its intents are rejected as stale). Users run **unlimited different agents**; each agent runs in exactly one place at a time. The rest of this document is the original RFC and is kept for context — where it conflicts with this section, this section wins.
 
 ---
 

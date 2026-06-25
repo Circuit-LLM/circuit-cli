@@ -20,15 +20,18 @@ async function api(method, p, body) {
   return r.json();
 }
 
-const map = (a) => ({ state: a.state, node: a.nodeId, health: a.health, id: a.id });
+const map = (a) => ({
+  state: a.state, node: a.nodeId, health: a.health, id: a.id,
+  address: a.address, policy: a.policy, custody: a.custody, paper: a.paper,
+});
 
 export async function create(name, meta) {
   const { agent } = await api('POST', '/v1/agents', {
     name,
     spec: meta.spec,
-    custodyTier: meta.spec?.custodyTier || 'key-on-node',
+    policy: meta.spec?.policy,
   });
-  return { id: agent.id };
+  return { id: agent.id, address: agent.address };
 }
 
 export async function start(_name, meta) {

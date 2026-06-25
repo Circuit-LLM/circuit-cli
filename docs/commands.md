@@ -86,13 +86,17 @@ circuit agent create <name>         # create (local by default)
 circuit agent create <name> --cloud # ...or host it on the mesh
 circuit agent start <name>          # start it
 circuit agent list                  # status, P&L, where it runs
-circuit agent status <name>         # detail + paper P&L
+circuit agent status <name>         # detail + custody, wallet, paper P&L
 circuit agent logs <name> [--tail n]
 circuit agent stop <name>
 circuit agent destroy <name> [--yes]
 ```
 
-`create` options: `--cloud`, `--workload <agentd|circuit-agent>`, `--interval <ms>`, `--strategy <s>`. Agents run in paper mode by default — fund a wallet before going live.
+`create` options: `--cloud`, `--workload <agentd|circuit-agent>`, `--interval <ms>`, `--strategy <s>`, and the custody policy — `--max-trade <sol>`, `--max-daily <sol>`, `--cooldown <ms>`, `--live` (paper by default).
+
+### Custody
+
+A `--cloud` agent's signing key lives **off-box** in the signer, never on the operator that runs it. On create you get a **wallet address** — fund it, then start. The agent can only trade by asking custody to sign, and the signer enforces your policy (max SOL per trade/day, cooldown) and signs `buy`/`sell` only — funds can never leave the wallet through the agent, so a host can't drain it. `status` shows the wallet, the limits, and `paper`/`LIVE`. Agents run **paper** until you create them with `--live`.
 
 ### Contribute capacity (operator)
 

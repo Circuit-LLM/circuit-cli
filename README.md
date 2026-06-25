@@ -171,7 +171,7 @@ Full reference: **[docs/commands.md](docs/commands.md)**.
 | `wallet` | SOL + CIRC balances, send, swap | required | live |
 | `data` | Token price/liquidity, trending, dips, charts | — | live |
 | `swarm` | Autonomous agents — stats & live signals | — | live |
-| `agent` | Launch & host autonomous agents (local or the mesh cloud) | optional | live |
+| `agent` | Launch & host autonomous agents (local or the mesh cloud); off-box custody | optional | live |
 | `network` | Solana TPS + inference-gateway health | — | live |
 | `node` | One-command GPU onboarding | — | live |
 | `status` | One-glance dashboard + `doctor` | — | live |

@@ -29,14 +29,16 @@ export const agents = {
   exists: (name) => !!readMeta(name),
   meta: (name) => readMeta(name),
 
-  async create(name, { driver = 'local', workload = 'agentd', config: cfg = {}, env = {} } = {}) {
+  async create(name, { driver = 'local', workload = 'agentd', config: cfg = {}, env = {}, policy } = {}) {
     if (!/^[a-zA-Z0-9_-]{1,32}$/.test(name)) throw new Error('name must be 1-32 chars [a-zA-Z0-9_-]');
     if (readMeta(name)) throw new Error(`agent "${name}" already exists`);
-    const meta = { name, driver, spec: { workload, config: cfg, env }, createdAt: Date.now() };
+    const meta = { name, driver, spec: { workload, config: cfg, env, ...(policy ? { policy } : {}) }, createdAt: Date.now() };
     writeMeta(name, meta);
     try {
       const r = await driverFor(meta).create(name, meta);
-      if (r?.id) { meta.id = r.id; writeMeta(name, meta); }
+      if (r?.id) meta.id = r.id;
+      if (r?.address) meta.address = r.address;
+      if (r?.id || r?.address) writeMeta(name, meta);
     } catch (e) {
       fs.rmSync(path.join(AGENTS_DIR, name), { recursive: true, force: true });
       throw e;
@@ -91,7 +93,6 @@ export const agents = {
         NODE_ID: budget.nodeId || `node-${os.hostname()}`,
         MAX_AGENTS: String(budget.maxAgents ?? 5),
         MAX_MEMORY_MB: String(budget.maxMemoryMb ?? 512),
-        CUSTODY_MAX: String(budget.custodyMax ?? 3),
         CIRCUIT_AGENT_DIR: config.circuitAgentDir,
       };
       const child = spawn(process.execPath, [hostScript], { detached: true, stdio: ['ignore', out, out], env });

@@ -52,6 +52,9 @@ const DEFAULTS = {
     priceFeed: 'http://localhost:18941',
     // Agent cloud control plane. Set CIRCUIT_CONTROL_PLANE to the public URL to ship widely.
     controlPlane: process.env.CIRCUIT_CONTROL_PLANE || 'http://127.0.0.1:18980',
+    // Off-box signer (custody). The control plane talks to it; the CLI uses this
+    // only to read an agent's wallet/policy directly when asked.
+    signer: process.env.CIRCUIT_SIGNER || 'http://127.0.0.1:18981',
   },
   links: {
     web: 'https://circuitllm.xyz',

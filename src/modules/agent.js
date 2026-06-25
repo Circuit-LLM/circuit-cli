@@ -61,6 +61,7 @@ async function showStatus(ctx, name, standalone) {
     let meta;
     try { meta = agents.meta(name); s = await agents.status(name); sp.success(name); } catch (e) { sp.error(e.message); return; }
     const h = s.health || {};
+    const pol = s.policy;
     console.log('');
     console.log(panel([
       heading(name, sym.diamond),
@@ -69,11 +70,15 @@ async function showStatus(ctx, name, standalone) {
       kv('Workload', c.text(meta.spec?.workload || 'agentd')),
       kv('State', sc(s.state)),
       kv('Where', c.text(s.node || (meta.driver === 'cloud' ? 'scheduling' : 'local'))),
+      kv('Custody', s.custody === 'offbox-signer' ? c.text('off-box signer') + c.dim(' (key off-host)') : c.dim('local (this machine)')),
+      s.address ? kv('Wallet', c.accent(s.address)) : null,
+      pol ? kv('Limits', c.text(`${pol.maxNotionalSol} SOL/trade · ${pol.maxDailySol} SOL/day`) + '  ' + (pol.paper ? c.dim('paper') : c.warn('LIVE'))) : null,
       kv('P&L', pnlOf(s)),
       kv('Scans', h.scans != null ? c.text(num(h.scans, 0)) : c.dim('—')),
+      h.signedTrades != null ? kv('Signed', c.text(num(h.signedTrades, 0))) : null,
       kv('Uptime', h.uptimeS != null ? c.text(`${h.uptimeS}s`) : c.dim('—')),
       kv('Updated', h.ts ? c.muted(timeAgo(h.ts) + ' ago') : c.dim('—')),
-    ].join('\n'), { title: 'AGENT' }));
+    ].filter(Boolean).join('\n'), { title: 'AGENT' }));
   });
 }
 
@@ -91,7 +96,7 @@ async function showLogs(ctx, name, tail, standalone) {
 
 // ── operator: contribute capacity ──
 function hostStartFlow(maxAgents) {
-  const r = agents.host.start({ maxAgents: Number(maxAgents) || 5, maxMemoryMb: 512, custodyMax: 3 });
+  const r = agents.host.start({ maxAgents: Number(maxAgents) || 5, maxMemoryMb: 512 });
   return r;
 }
 
@@ -163,16 +168,30 @@ export default {
       .option('--workload <w>', 'agentd | circuit-agent', 'agentd')
       .option('--interval <ms>', 'scan interval', (v) => parseInt(v, 10))
       .option('--strategy <s>', 'strategy label', 'dip-reversal')
+      .option('--max-trade <sol>', 'custody: max SOL per trade', parseFloat, 0.05)
+      .option('--max-daily <sol>', 'custody: max SOL per day', parseFloat, 0.5)
+      .option('--cooldown <ms>', 'custody: min ms between trades', (v) => parseInt(v, 10), 30000)
+      .option('--live', 'trade real funds (default: paper)')
       .action(async (name, o) => {
         const sp = spinner('Creating agent…');
         try {
+          const policy = o.cloud
+            ? { maxNotionalSol: o.maxTrade, maxDailySol: o.maxDaily, cooldownMs: o.cooldown, paper: !o.live }
+            : undefined;
           const m = await agents.create(name, {
             driver: o.cloud ? 'cloud' : 'local',
             workload: o.workload,
-            config: { scanIntervalMs: o.interval || 5000, strategy: o.strategy, paperTrading: true },
+            config: { scanIntervalMs: o.interval || 5000, strategy: o.strategy, paperTrading: !o.live, tradeSizeSol: Math.min(0.01, o.maxTrade) },
+            policy,
           });
           sp.success(`Created "${name}" (${m.driver}${m.id ? ' · ' + m.id : ''})`);
-          console.log(c.dim(`  start it:  circuit agent start ${name}`));
+          if (m.address) {
+            console.log('  ' + c.muted('custody ') + c.text('off-box signer') + c.dim(' — the signing key never touches the host'));
+            console.log('  ' + c.muted('wallet  ') + c.accent(m.address));
+            console.log('  ' + c.dim(`fund it, then:  circuit agent start ${name}`) + (o.live ? c.warn('   LIVE — real funds') : c.dim('   (paper)')));
+          } else {
+            console.log(c.dim(`  start it:  circuit agent start ${name}`));
+          }
         } catch (e) { sp.error(e.message); }
       });
 
@@ -214,7 +233,7 @@ export default {
         }
         if (st.running) { console.log(c.muted(`  already hosting (${st.budget.maxAgents} agents). --off to stop.`)); return; }
         try {
-          const r = agents.host.start({ maxAgents: o.maxAgents, nodeId: o.nodeId, maxMemoryMb: o.maxMemory, custodyMax: 3 });
+          const r = agents.host.start({ maxAgents: o.maxAgents, nodeId: o.nodeId, maxMemoryMb: o.maxMemory });
           console.log(`  ${c.ok(sym.check)} contributing up to ${c.text(r.budget.maxAgents)} agents to the cloud  ${c.dim('(pid ' + r.pid + ')')}`);
         } catch (e) { console.log('  ' + c.err(e.message)); }
       });
