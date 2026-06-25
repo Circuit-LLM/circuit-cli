@@ -4,15 +4,16 @@ import {
 } from '../ui/index.js';
 import { screenFrame } from '../core/render.js';
 import { priceFeed } from '../services/priceFeed.js';
-import { circuitNode } from '../services/circuitNode.js';
 import { money, pct, shortMint, num } from '../util/format.js';
+
+const WSOL = 'So11111111111111111111111111111111111111112';
 
 async function showTrending(ctx, standalone) {
   await screenFrame({ status: ctx.status, standalone, footer: 'press any key to go back' }, async () => {
     const sp = spinner('Loading trending tokens…');
     let data;
     try {
-      data = await circuitNode.trending(12);
+      data = await priceFeed.trending(12);
       sp.success('Trending');
     } catch (e) {
       sp.error(`Trending unavailable: ${e.message}`);
@@ -21,18 +22,25 @@ async function showTrending(ctx, standalone) {
     console.log('');
     console.log(heading('Trending', sym.diamond));
     console.log('');
-    const rows = (data.trending || []).map((t) => ({
-      tok: t.symbol && t.symbol !== '?' ? t.symbol : shortMint(t.mint),
-      price: money(t.priceUsd),
-      liq: t.liquidity != null ? money(t.liquidity) : '—',
-      sig: (t.signals || []).join(', '),
-    }));
+    const rows = (data.tokens || [])
+      .filter((t) => t.mint !== WSOL) // wrapped SOL is the quote asset, not a trending token
+      .slice(0, 12)
+      .map((t, i) => ({
+        n: String(i + 1),
+        tok: shortMint(t.mint),
+        price: t.priceUsd != null ? money(t.priceUsd) : c.dim('—'),
+        src: t.source || c.dim('—'),
+      }));
+    if (!rows.length) {
+      console.log(c.muted('  No trending tokens right now.'));
+      return;
+    }
     console.log(
       table(rows, [
+        { key: 'n', label: '#' },
         { key: 'tok', label: 'TOKEN' },
         { key: 'price', label: 'PRICE', align: 'right' },
-        { key: 'liq', label: 'LIQUIDITY', align: 'right' },
-        { key: 'sig', label: 'SIGNALS' },
+        { key: 'src', label: 'SOURCE' },
       ]),
     );
   });
@@ -43,7 +51,7 @@ async function showDips(ctx, standalone) {
     const sp = spinner('Scanning for dips…');
     let data;
     try {
-      data = await circuitNode.dexLosers('5m', 20);
+      data = await priceFeed.losers('5m', 20);
       sp.success('Dip scanner (5m)');
     } catch (e) {
       sp.error(`Dip feed unavailable: ${e.message}`);
