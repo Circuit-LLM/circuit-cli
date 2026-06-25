@@ -110,7 +110,7 @@ circuit agent host --status
 circuit agent host --off             # drain + stop
 ```
 
-Point at a control plane with `CIRCUIT_CONTROL_PLANE=<url>`. See the [agent-cloud spec](agent-cloud-spec.md).
+Point at a control plane with `CIRCUIT_CONTROL_PLANE=<url>`. See the [agent-cloud spec](agent-cloud-spec.md). If you also run a [circuit-node-client](https://github.com/Circuit-LLM/circuit-node-client), its **Cloud** tab shows what this node is hosting.
 
 ---
 
