@@ -4,7 +4,6 @@ import {
 import { config } from '../config.js';
 import { chat, chatStream, listModels } from '../services/inference.js';
 import { makeWallet } from '../services/wallet.js';
-import { loadKeypair } from '../services/solana.js';
 import { shortMint } from '../util/format.js';
 
 function costLine(res) {
@@ -34,12 +33,12 @@ async function repl(ctx) {
   const wallet = makeWallet();
   if (!wallet.keypair) {
     console.log(
-      c.muted('  Heads up: chat pays ~401 CIRC (~$0.03) per turn via x402.\n  Load a wallet with ') +
-        c.accent('export CIRCUIT_WALLET=<base58>') +
+      c.muted('  Heads up: chat pays ~401 CIRC (~$0.03) per turn via x402.\n  Connect a wallet with ') +
+        c.accent('circuit wallet import') +
         c.muted(' to enable it.\n'),
     );
   }
-  const messages = [];
+  const messages = config.systemPrompt ? [{ role: 'system', content: config.systemPrompt }] : [];
   for (;;) {
     const input = await askText(c.accent('you'), { placeholder: 'type a message · /exit to leave' });
     if (!input || input.trim() === '/exit' || input.trim() === '/quit') break;
@@ -78,7 +77,10 @@ async function repl(ctx) {
 // One-shot: `circuit chat "prompt"` or piped stdin.
 async function oneShot(ctx, prompt, opts) {
   const wallet = makeWallet();
-  const messages = [{ role: 'user', content: prompt }];
+  const sys = opts.system ?? config.systemPrompt;
+  const messages = sys
+    ? [{ role: 'system', content: sys }, { role: 'user', content: prompt }]
+    : [{ role: 'user', content: prompt }];
   const reqOpts = { model: opts.model, temperature: opts.temp, maxTokens: opts.maxTokens };
 
   if (opts.json) {
@@ -123,6 +125,7 @@ export default {
       .option('--json', 'output raw JSON (non-streaming)')
       .option('-m, --model <id>', 'model id')
       .option('-t, --temp <n>', 'temperature', parseFloat)
+      .option('-s, --system <prompt>', 'system prompt (overrides the default)')
       .option('--max-tokens <n>', 'max tokens', (v) => parseInt(v, 10))
       .option('--models', 'list available models and exit')
       .action(async (promptParts, options) => {

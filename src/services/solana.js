@@ -3,7 +3,7 @@
 import { Connection, PublicKey, Keypair } from '@solana/web3.js';
 import bs58 from 'bs58';
 import fs from 'node:fs';
-import { config, WALLET_FILE, CIRC, SOL_MINT } from '../config.js';
+import { config, HOME_DIR, WALLET_FILE, CIRC, SOL_MINT } from '../config.js';
 
 export const PK = {
   circMint: new PublicKey(CIRC.mint),
@@ -75,5 +75,38 @@ export function isValidAddress(s) {
     return false;
   }
 }
+
+// ── Keystore ─────────────────────────────────────────────────────────────────
+// The wallet is stored as a Solana keyfile (byte array) at ~/.circuit/id.json,
+// owner-only (0600), same format as solana-keygen. Unencrypted at rest — an
+// encrypted keystore is a planned enhancement.
+
+export function walletExists() {
+  return !!process.env.CIRCUIT_WALLET || fs.existsSync(WALLET_FILE);
+}
+
+export function generateKeypair() {
+  return Keypair.generate();
+}
+
+// Accept a base58 secret key OR a JSON byte array.
+export function keypairFromInput(input) {
+  const s = String(input).trim();
+  if (s.startsWith('[')) return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(s)));
+  return Keypair.fromSecretKey(bs58.decode(s));
+}
+
+export function saveKeypair(keypair) {
+  fs.mkdirSync(HOME_DIR, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(WALLET_FILE, JSON.stringify(Array.from(keypair.secretKey)), { mode: 0o600 });
+  try {
+    fs.chmodSync(WALLET_FILE, 0o600);
+  } catch {
+    /* best-effort on platforms without chmod */
+  }
+  return WALLET_FILE;
+}
+
+export const secretKeyBase58 = (keypair) => bs58.encode(keypair.secretKey);
 
 export { PublicKey, Keypair };

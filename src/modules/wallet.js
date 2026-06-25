@@ -1,13 +1,84 @@
 import {
-  c, palette, sym, clearScreen, slimHeader, panel, kv, heading,
-  spinner, menuSelect, askText, askConfirm,
+  c, palette, sym, clearScreen, slimHeader, compactBrand, panel, kv, heading,
+  spinner, menuSelect, askText, askConfirm, askPassword, pressKey,
 } from '../ui/index.js';
 import { screenFrame } from '../core/render.js';
 import { CIRC, SOL_MINT } from '../config.js';
-import { makeWallet, MINTS } from '../services/wallet.js';
-import { loadKeypair, isValidAddress } from '../services/solana.js';
+import { makeWallet } from '../services/wallet.js';
+import {
+  loadKeypair, isValidAddress, walletExists,
+  generateKeypair, keypairFromInput, saveKeypair, secretKeyBase58,
+} from '../services/solana.js';
 import { priceFeed } from '../services/priceFeed.js';
 import { money, tokenAmount, shortMint } from '../util/format.js';
+
+// A bare header (no pressKey) for flows that prompt — keeps the prompt clean.
+function flowHeader(ctx, standalone, title) {
+  clearScreen();
+  if (standalone) compactBrand();
+  else {
+    slimHeader(ctx.status);
+    console.log('');
+  }
+  console.log(heading(title, sym.cube));
+  console.log('');
+}
+
+async function importFlow(ctx, standalone) {
+  flowHeader(ctx, standalone, 'Connect a wallet');
+  console.log(c.dim('  Paste a base58 secret key (or a JSON byte array).'));
+  console.log(c.dim('  It is saved to ~/.circuit/id.json, readable only by you (0600).'));
+  console.log('');
+  const key = await askPassword('Secret key (hidden)');
+  if (!key) return;
+  let kp;
+  try {
+    kp = keypairFromInput(key);
+  } catch {
+    console.log('\n  ' + c.err('That is not a valid Solana secret key.'));
+    return pressKey('press any key to go back');
+  }
+  if (walletExists()) {
+    const ok = await askConfirm('A wallet is already configured. Overwrite it?', { initialValue: false });
+    if (!ok) return;
+  }
+  const path = saveKeypair(kp);
+  console.log('\n  ' + c.ok(sym.check) + ' ' + c.text('Wallet connected  ') + c.accent(kp.publicKey.toBase58()));
+  console.log('  ' + c.dim(`saved to ${path}`));
+  if (process.env.CIRCUIT_WALLET) {
+    console.log('  ' + c.warn('Note: CIRCUIT_WALLET is set and overrides this file — unset it to use the saved wallet.'));
+  }
+  await pressKey('press any key to go back');
+}
+
+async function generateFlow(ctx, standalone) {
+  flowHeader(ctx, standalone, 'Generate a new wallet');
+  if (walletExists()) {
+    const ok = await askConfirm('A wallet already exists. Replace it with a brand-new one?', { initialValue: false });
+    if (!ok) return;
+  }
+  const kp = generateKeypair();
+  const path = saveKeypair(kp);
+  console.log('  ' + c.ok(sym.check) + ' ' + c.text('New wallet  ') + c.accent(kp.publicKey.toBase58()));
+  console.log('  ' + c.dim(`saved to ${path}`));
+  console.log('');
+  console.log('  ' + c.warn('Back up your key — it is the only way to recover this wallet.'));
+  const reveal = await askConfirm('Reveal the secret key once, now, for backup?', { initialValue: false });
+  if (reveal) {
+    console.log('\n  ' + c.dim('secret key (base58) — store it safely, shown only once:'));
+    console.log('  ' + c.text(secretKeyBase58(kp)));
+  }
+  console.log('\n  ' + c.muted('Fund it with SOL + CIRC to chat and transact.'));
+  await pressKey('press any key to go back');
+}
+
+async function addressView(ctx, standalone) {
+  await screenFrame({ status: ctx.status, standalone, footer: 'press any key to go back' }, () => {
+    const w = makeWallet();
+    if (!w.address) return noWalletPanel();
+    console.log(panel([heading('Address', sym.cube), '', c.accent(w.address)].join('\n'), { title: 'WALLET' }));
+  });
+}
 
 async function balancesView(ctx, standalone, address) {
   await screenFrame({ status: ctx.status, standalone, footer: 'press any key to go back' }, async () => {
@@ -165,13 +236,21 @@ export default {
       clearScreen();
       slimHeader(ctx.status);
       const has = !!loadKeypair();
-      const choice = await menuSelect(c.text('Wallet'), [
-        { value: 'balances', label: `${sym.cube}  Balances`, hint: 'SOL + CIRC' },
-        { value: 'receive', label: `${sym.arrow}  Receive`, hint: 'show your address' },
-        { value: 'send', label: `${sym.spark}  Send`, hint: has ? 'transfer CIRC or SOL' : 'needs a wallet' },
-        { value: 'swap', label: `${sym.diamond}  Swap`, hint: has ? 'SOL ↔ CIRC via Jupiter' : 'needs a wallet' },
-        { value: 'back', label: `${sym.chevron}  Back` },
-      ]);
+      const choices = has
+        ? [
+            { value: 'balances', label: `${sym.cube}  Balances`, hint: 'SOL + CIRC' },
+            { value: 'receive', label: `${sym.arrow}  Receive`, hint: 'show your address' },
+            { value: 'send', label: `${sym.spark}  Send`, hint: 'transfer CIRC or SOL' },
+            { value: 'swap', label: `${sym.diamond}  Swap`, hint: 'SOL ↔ CIRC via Jupiter' },
+            { value: 'import', label: `${sym.arrow}  Connect a different wallet` },
+            { value: 'back', label: `${sym.chevron}  Back` },
+          ]
+        : [
+            { value: 'import', label: `${sym.cube}  Connect a wallet`, hint: 'paste a secret key' },
+            { value: 'generate', label: `${sym.spark}  Generate a new wallet`, hint: 'create a fresh keypair' },
+            { value: 'back', label: `${sym.chevron}  Back` },
+          ];
+      const choice = await menuSelect(c.text('Wallet'), choices);
       if (choice === 'back') return;
       if (choice === 'balances') await balancesView(ctx);
       else if (choice === 'receive') {
@@ -182,6 +261,8 @@ export default {
         });
       } else if (choice === 'send') await sendFlow(ctx);
       else if (choice === 'swap') await swapFlow(ctx);
+      else if (choice === 'import') await importFlow(ctx);
+      else if (choice === 'generate') await generateFlow(ctx);
     }
   },
   register(cmd, ctx) {
@@ -189,5 +270,8 @@ export default {
       .command('balance [address]')
       .description('show SOL + CIRC balances')
       .action((address) => balancesView(ctx, true, address && isValidAddress(address) ? address : undefined));
+    cmd.command('import').description('connect a wallet from a secret key').action(() => importFlow(ctx, true));
+    cmd.command('generate').description('generate a new wallet keypair').action(() => generateFlow(ctx, true));
+    cmd.command('address').description('show the loaded wallet address').action(() => addressView(ctx, true));
   },
 };

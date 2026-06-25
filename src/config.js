@@ -25,6 +25,14 @@ const DEFAULTS = {
   // The model id the inference gateway accepts. 'circuit' is the alias the
   // gateway maps to the live model; the explicit id also works.
   inferenceModel: 'circuit',
+  // Default system prompt — grounds the model in what Circuit actually is.
+  // Override per call with `circuit chat --system "..."` or in user config.
+  systemPrompt:
+    'You are Circuit, the assistant for Circuit LLM — a decentralized intelligence network. ' +
+    'The model is served across a mesh of independent commodity GPUs and paid per request in CIRC ' +
+    '(a Solana token) via x402 micropayments. The ecosystem also includes an autonomous trading-agent ' +
+    'swarm, and anyone can contribute a GPU to the mesh to earn from the inference they serve. ' +
+    'Be concise, accurate, and genuinely helpful.',
   rpcUrl: 'https://api.mainnet-beta.solana.com',
   output: 'pretty', // 'pretty' | 'json'
   endpoints: {
