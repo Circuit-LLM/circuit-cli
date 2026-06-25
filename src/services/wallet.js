@@ -13,7 +13,7 @@ import {
   createAssociatedTokenAccountIdempotentInstruction,
   getAccount,
 } from '@solana/spl-token';
-import { getConnection, loadKeypair, PK, PublicKey } from './solana.js';
+import { getConnections, withRpc, loadKeypair, PK, PublicKey } from './solana.js';
 import { CIRC, SOL_MINT } from '../config.js';
 import { getJson, postJson } from './http.js';
 
@@ -21,18 +21,18 @@ const JUP = 'https://lite-api.jup.ag/swap/v1';
 
 export function makeWallet({ address } = {}) {
   const keypair = loadKeypair();
-  const connection = getConnection();
+  const connections = getConnections(); // primary + public fallbacks (used on 429)
   const pubkey = keypair ? keypair.publicKey : address ? new PublicKey(address) : null;
 
   return {
     keypair,
-    connection,
+    connection: connections[0],
     address: pubkey ? pubkey.toBase58() : null,
     readOnly: !keypair,
 
     async solBalance() {
       if (!pubkey) return null;
-      const lamports = await connection.getBalance(pubkey, 'confirmed');
+      const lamports = await withRpc(connections, (conn) => conn.getBalance(pubkey, 'confirmed'));
       return lamports / LAMPORTS_PER_SOL;
     },
 
@@ -40,7 +40,7 @@ export function makeWallet({ address } = {}) {
       if (!pubkey) return 0;
       const ata = getAssociatedTokenAddressSync(PK.circMint, pubkey, false, PK.token2022);
       try {
-        const acc = await getAccount(connection, ata, 'confirmed', PK.token2022);
+        const acc = await withRpc(connections, (conn) => getAccount(conn, ata, 'confirmed', PK.token2022));
         return Number(acc.amount) / 10 ** CIRC.decimals;
       } catch {
         return 0; // no ATA yet = zero balance
@@ -57,7 +57,7 @@ export function makeWallet({ address } = {}) {
         createAssociatedTokenAccountIdempotentInstruction(keypair.publicKey, toAta, to, PK.circMint, PK.token2022),
         createTransferCheckedInstruction(fromAta, PK.circMint, toAta, keypair.publicKey, amountRaw, CIRC.decimals, [], PK.token2022),
       );
-      return sendAndConfirmTransaction(connection, tx, [keypair], { commitment: 'confirmed' });
+      return withRpc(connections, (conn) => sendAndConfirmTransaction(conn, tx, [keypair], { commitment: 'confirmed' }));
     },
 
     async sendSol(toAddress, sol) {
@@ -69,7 +69,7 @@ export function makeWallet({ address } = {}) {
           lamports: Math.round(sol * LAMPORTS_PER_SOL),
         }),
       );
-      return sendAndConfirmTransaction(connection, tx, [keypair], { commitment: 'confirmed' });
+      return withRpc(connections, (conn) => sendAndConfirmTransaction(conn, tx, [keypair], { commitment: 'confirmed' }));
     },
 
     // Jupiter quote (read-only). amountRaw = base units of inputMint.
@@ -90,8 +90,11 @@ export function makeWallet({ address } = {}) {
       });
       const tx = VersionedTransaction.deserialize(Buffer.from(swapTransaction, 'base64'));
       tx.sign([keypair]);
-      const sig = await connection.sendRawTransaction(tx.serialize(), { maxRetries: 3 });
-      await connection.confirmTransaction(sig, 'confirmed');
+      const sig = await withRpc(connections, async (conn) => {
+        const s = await conn.sendRawTransaction(tx.serialize(), { maxRetries: 3 });
+        await conn.confirmTransaction(s, 'confirmed');
+        return s;
+      });
       return { sig, quote };
     },
   };
