@@ -6,3 +6,7 @@ node_modules/
 dist/
 coverage/
 *.tgz
+# wallet / key material — the CLI keeps these in ~/.circuit, never the repo
+id.json
+*.keypair.json
+.circuit/
