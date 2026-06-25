@@ -188,6 +188,8 @@ Added alongside the existing inference + (planned) dRPC capabilities. The node-c
 
 ## 8. Custody spectrum (opt-in, scheduler-routed)
 
+> **SUPERSEDED by §0.** Not built as a spectrum. Shipped as the single **off-box signer** (this section's T2), with live trading via Jupiter Ultra. No tiers are exposed. Kept for design context.
+
 | Tier | Where the key is | Runs on | Loss if operator is malicious |
 |---|---|---|---|
 | **T0 key-on-node** | plaintext on host | Circuit-owned nodes only | full (acceptable — we *are* the host) |
@@ -209,6 +211,8 @@ An agent declares its **required** tier; the scheduler only places it on nodes w
 ---
 
 ## 10. Payments & economics
+
+> **SUPERSEDED by §0 — NOT implemented.** There is no hosting toll; hosting is unmetered in v1. Kept for design context.
 
 - **Metered toll:** `price = a·cpu_seconds + b·ram_gb_hours + confidential_premium`, billed in CIRC over x402 on a cadence (hourly) from the agent wallet.
 - **Attribution:** the toll is recorded in the **existing** revenue-ledger as `{agentId, nodeId, amount}`; the **existing** distributor pays the hosting operator every 30 min. Confidential nodes earn a premium. A small protocol cut accrues to Circuit.
