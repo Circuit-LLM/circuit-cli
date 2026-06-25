@@ -69,6 +69,8 @@ npm link                 # optional — exposes `circuit` globally
 circuit                  # open the interactive console
 ```
 
+> `npm install` may report a few advisories from the **Solana SDK's transitive dependencies** — they're known, not exploitable here, and **`npm audit fix --force` will break the CLI** (it downgrades the SDK to 2019 versions). See [SECURITY.md](SECURITY.md#dependencies--npm-audit).
+
 Or jump straight to anything:
 
 ```bash
