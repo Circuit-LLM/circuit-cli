@@ -1,8 +1,8 @@
-// The hero banner. Renders a gradient "CIRCUIT" wordmark, centred to the
-// terminal, with a graceful compact fallback for narrow windows.
+// The hero banner — a gradient "CIRCUIT" wordmark centred to the terminal,
+// with a graceful compact fallback for narrow windows.
 import figlet from 'figlet';
-import { brand, c, sym } from './theme.js';
-import { center, cols } from './ui.js';
+import { brand, c, sym } from '../theme.js';
+import { center, cols } from './layout.js';
 
 export function renderBanner() {
   const w = cols();
@@ -17,11 +17,9 @@ export function renderBanner() {
     const lines = plain.replace(/\s+$/, '').split('\n');
     const widest = Math.max(...lines.map((l) => l.length));
     const pad = ' '.repeat(Math.max(0, Math.floor((w - widest) / 2)));
-    // Apply the gradient to the unpadded art so colour starts on the first glyph.
+    // Gradient the unpadded art so colour starts on the first glyph.
     return lines.map((l) => pad + brand(l)).join('\n');
   }
-
-  // Compact fallback.
   return center(brand('C I R C U I T'), w);
 }
 

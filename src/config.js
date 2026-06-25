@@ -1,19 +1,79 @@
-// Static configuration for the Circuit CLI. Endpoints point at the live
-// Circuit ecosystem; nothing here is secret. Capabilities are wired up later.
+// Static configuration + a small user-config layer (~/.circuit/config.json).
+// Nothing secret lives here. The wallet keypair is loaded separately by the
+// solana service from ~/.circuit/id.json or the CIRCUIT_WALLET env var.
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
-export const config = {
-  name: 'circuit',
-  version: '0.1.0',
+export const HOME_DIR = path.join(os.homedir(), '.circuit');
+export const CONFIG_FILE = path.join(HOME_DIR, 'config.json');
+export const WALLET_FILE = path.join(HOME_DIR, 'id.json');
+
+// Circuit ecosystem constants.
+export const CIRC = {
+  mint: '8fQgfsRnRkKSeNUhevT7wp8mhNvMSJdLn1fJi4oVpump',
+  tokenProgram: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb',
+  decimals: 6,
+  symbol: 'CIRC',
+};
+export const SOL_MINT = 'So11111111111111111111111111111111111111112';
+
+const DEFAULTS = {
+  version: '0.2.0',
   web: 'circuitllm.xyz',
   model: 'Qwen2.5-72B · decentralized',
+  // The model id the inference gateway accepts. 'circuit' is the alias the
+  // gateway maps to the live model; the explicit id also works.
+  inferenceModel: 'circuit',
+  rpcUrl: 'https://api.mainnet-beta.solana.com',
+  output: 'pretty', // 'pretty' | 'json'
   endpoints: {
-    health: 'https://circuitllm.xyz',
-    inference: 'https://inference.circuitllm.xyz',
-    node: 'https://node.circuitllm.xyz',
+    inference: 'https://inference.circuitllm.xyz/v1',
     data: 'https://api.circuitllm.xyz',
+    join: 'https://circuitllm.xyz/join',
+    health: 'https://circuitllm.xyz',
+    // VPS-local services (used when running on the coordinator host). The public
+    // mirrors land behind api.circuitllm.xyz as routes are exposed.
+    node: 'http://localhost:18940',
+    priceFeed: 'http://localhost:18941',
   },
   links: {
     web: 'https://circuitllm.xyz',
     docs: 'https://circuitllm.xyz/docs',
   },
 };
+
+let _user = null;
+function loadUser() {
+  if (_user) return _user;
+  try {
+    _user = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+  } catch {
+    _user = {};
+  }
+  return _user;
+}
+
+// Deep-ish merge: user config overrides defaults (endpoints merged shallowly).
+function build() {
+  const u = loadUser();
+  return {
+    ...DEFAULTS,
+    ...u,
+    endpoints: { ...DEFAULTS.endpoints, ...(u.endpoints || {}) },
+    links: { ...DEFAULTS.links, ...(u.links || {}) },
+    // env overrides for convenience
+    rpcUrl: process.env.CIRCUIT_RPC_URL || u.rpcUrl || DEFAULTS.rpcUrl,
+  };
+}
+
+export const config = build();
+
+export function saveUserConfig(patch) {
+  const next = { ...loadUser(), ...patch };
+  fs.mkdirSync(HOME_DIR, { recursive: true });
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(next, null, 2) + '\n');
+  _user = next;
+  Object.assign(config, build());
+  return config;
+}
