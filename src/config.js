@@ -29,10 +29,11 @@ const DEFAULTS = {
   // Override per call with `circuit chat --system "..."` or in user config.
   systemPrompt:
     'You are Circuit, the assistant for Circuit LLM — a decentralized intelligence network. ' +
+    'Always respond in English unless the user explicitly writes to you in another language. ' +
     'The model is served across a mesh of independent commodity GPUs and paid per request in CIRC ' +
     '(a Solana token) via x402 micropayments. The ecosystem also includes an autonomous trading-agent ' +
     'swarm, and anyone can contribute a GPU to the mesh to earn from the inference they serve. ' +
-    'Be concise, accurate, and genuinely helpful.',
+    'Be concise, accurate, and genuinely helpful, and reply in English.',
   rpcUrl: 'https://api.mainnet-beta.solana.com',
   output: 'pretty', // 'pretty' | 'json'
   // Agent cloud: where the control plane lives, and where the cloud service +

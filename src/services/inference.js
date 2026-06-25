@@ -16,7 +16,9 @@ function buildBody(messages, opts, stream) {
     model: opts.model ?? config.inferenceModel,
     messages,
     max_tokens: opts.maxTokens ?? 512,
-    temperature: opts.temperature ?? 0.7,
+    // 0.5 default: enough variety for an assistant, low enough that the bilingual
+    // 72B doesn't drift into another language mid-answer. Override with --temp.
+    temperature: opts.temperature ?? 0.5,
     stream,
   });
 }
