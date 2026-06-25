@@ -1,7 +1,3 @@
-<div align="center">
-
-# circuit-cli
-
 ```
  ██████╗██╗██████╗  ██████╗██╗   ██╗██╗████████╗
 ██╔════╝██║██╔══██╗██╔════╝██║   ██║██║╚══██╔══╝
@@ -11,6 +7,10 @@
  ╚═════╝╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝   ╚═╝
         L L M  ·  decentralized intelligence
 ```
+
+<div align="center">
+
+# circuit-cli
 
 **The command line for the Circuit LLM decentralized intelligence network. Chat with the decentralized 72B, manage the CIRC that pays for it, watch the mesh and the agent swarm, query on-chain data, and contribute a GPU — all from one beautiful terminal.**
 
