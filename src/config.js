@@ -18,6 +18,12 @@ export const CIRC = {
 };
 export const SOL_MINT = 'So11111111111111111111111111111111111111112';
 
+// Agent Vault — non-custodial on-chain custody (circuit-agent-vault). The program id is fixed (the
+// deployed program); point at the cluster it's deployed to via CIRCUIT_RPC_URL or `--rpc`.
+export const VAULT = {
+  programId: process.env.CIRCUIT_VAULT_PROGRAM || '9AmhsDD9AwUM57pLwYsmNWhjdAP5vTy2HXxqbdKRaxXA',
+};
+
 const DEFAULTS = {
   version: '0.2.0',
   web: 'circuitllm.xyz',

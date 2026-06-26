@@ -6,7 +6,12 @@ import {
 import { screenFrame } from '../core/render.js';
 import { agents } from '../services/agents.js';
 import { makeWallet } from '../services/wallet.js';
+import * as vault from '../services/vault.js';
 import { pct, num, timeAgo } from '../util/format.js';
+
+const sol = (lamports) => (Number(lamports) / 1e9).toFixed(4);
+const OP_LABEL = { 1: '<', 2: '<=', 3: '>', 4: '>=' };
+const OP_CODE = { lt: 1, lte: 2, gt: 3, gte: 4 };
 
 // Load a verified-intent rule file (docs/verified-intents.md): JSON with { rule,
 // acceptedKeys, acceptedNotaries?, evidenceMaxAgeMs? }. The signer re-runs `rule` on
@@ -327,6 +332,116 @@ export default {
           const r = agents.host.start({ maxAgents: o.maxAgents, nodeId: o.nodeId, maxMemoryMb: o.maxMemory });
           console.log(`  ${c.ok(sym.check)} contributing up to ${c.text(r.budget.maxAgents)} agents to the cloud  ${c.dim('(pid ' + r.pid + ')')}`);
         } catch (e) { console.log('  ' + c.err(e.message)); }
+      });
+
+    // ── non-custodial on-chain custody (Agent Vault) ──
+    // The owner (this wallet) is the sole withdraw authority; the vault's delegate key can only trade
+    // through the on-chain guard. Circuit holds no keys. See circuit-agent-vault.
+    const v = cmd.command('vault').description('non-custodial on-chain custody (owner-controlled vault)');
+
+    v.command('create <name>')
+      .description('create a vault (this wallet = owner/withdraw authority; generates the trade-only delegate)')
+      .option('--max-trade <sol>', 'cap per trade', parseFloat, 0.05)
+      .option('--max-daily <sol>', 'rolling 24h cap', parseFloat, 0.5)
+      .option('--rpc <url>', 'cluster RPC (defaults to your configured RPC)')
+      .action(async (name, o) => {
+        const sp = spinner('Creating vault…');
+        try {
+          const r = await vault.create(name, { maxTradeSol: o.maxTrade, maxDailySol: o.maxDaily, rpc: o.rpc });
+          sp.success(`Vault "${name}" created`);
+          console.log('  ' + c.muted('vault    ') + c.accent(r.vault));
+          console.log('  ' + c.muted('delegate ') + c.text(r.delegate) + c.dim('  (trade-only — can never withdraw)'));
+          console.log('  ' + c.dim(`fund it:  circuit agent vault fund ${name} <sol>`));
+        } catch (e) { sp.error(e.message); }
+      });
+
+    v.command('list').description('list your vaults').action(() => {
+      const names = vault.listVaults();
+      if (!names.length) { console.log(c.muted('  No vaults yet.  Create one:  ') + c.accent('circuit agent vault create <name>')); return; }
+      console.log('');
+      for (const n of names) { const m = vault.readMeta(n); console.log('  ' + c.text(n.padEnd(16)) + c.dim(m.vault)); }
+    });
+
+    v.command('status <name>').description('vault state (caps, delegate, rule, routes)').option('--rpc <url>', 'cluster RPC')
+      .action(async (name, o) => {
+        const sp = spinner(`Reading ${name}…`);
+        try {
+          const s = await vault.fetch(name, { rpc: o.rpc });
+          sp.stop?.();
+          if (!s.exists) { console.log(c.warn(`  vault "${name}" not found on-chain (not deployed yet?)`)); console.log('  ' + c.dim('vault ') + c.accent(s.vault)); return; }
+          console.log('');
+          console.log(panel([
+            heading(name, sym.diamond), '',
+            kv('Vault', c.accent(s.vault)),
+            kv('Owner', c.text(s.owner)),
+            kv('Delegate', c.text(s.delegate) + c.dim(' (trade-only)')),
+            kv('Balance', c.text(sol(s.lamports) + ' SOL')),
+            kv('Caps', c.text(`${sol(s.maxTradeLamports)} /trade · ${sol(s.dailyLimitLamports)} /day`) + (s.paused ? '  ' + c.warn('PAUSED') : '')),
+            kv('Spent 24h', c.text(sol(s.daySpentLamports) + ' SOL')),
+            kv('Routes', s.routes.length ? c.text(s.routes.join(', ')) : c.dim('any (guard-only)')),
+            kv('Rule', s.rule ? c.text(`price ${OP_LABEL[s.rule.op] || '?'} ${s.rule.threshold}  ·  ≤${s.rule.maxAge}s`) + c.dim(`  oracle ${s.rule.oracle.slice(0, 8)}…`) : c.dim('none')),
+            kv('Epoch', c.text(String(s.epoch))),
+          ].filter(Boolean).join('\n'), { title: 'VAULT' }));
+        } catch (e) { sp.error(e.message); }
+      });
+
+    v.command('fund <name> <sol>').description('deposit SOL into the vault').option('--rpc <url>', 'cluster RPC')
+      .action(async (name, amount, o) => {
+        const sp = spinner('Funding…');
+        try { const sig = await vault.fund(name, parseFloat(amount), { rpc: o.rpc }); sp.success(`Funded ${amount} SOL`); console.log('  ' + c.dim('tx ') + c.accent(sig)); }
+        catch (e) { sp.error(e.message); }
+      });
+
+    v.command('withdraw <name> <sol>').description('withdraw SOL back to the owner (the escape hatch)').option('--rpc <url>', 'cluster RPC')
+      .action(async (name, amount, o) => {
+        const sp = spinner('Withdrawing…');
+        try { const sig = await vault.withdraw(name, parseFloat(amount), { rpc: o.rpc }); sp.success(`Withdrew ${amount} SOL → owner`); console.log('  ' + c.dim('tx ') + c.accent(sig)); }
+        catch (e) { sp.error(e.message); }
+      });
+
+    v.command('pause <name>').description('halt trading (withdraw still works)').option('--rpc <url>', 'cluster RPC')
+      .action(async (name, o) => { const sp = spinner('Pausing…'); try { await vault.configure(name, { paused: true, rpc: o.rpc }); sp.success(`${name} paused`); } catch (e) { sp.error(e.message); } });
+    v.command('unpause <name>').description('resume trading').option('--rpc <url>', 'cluster RPC')
+      .action(async (name, o) => { const sp = spinner('Resuming…'); try { await vault.configure(name, { paused: false, rpc: o.rpc }); sp.success(`${name} resumed`); } catch (e) { sp.error(e.message); } });
+
+    v.command('rotate <name>').description('rotate the agent delegate key (fences out the old one)').option('--rpc <url>', 'cluster RPC')
+      .action(async (name, o) => { const sp = spinner('Rotating delegate…'); try { const r = await vault.rotateDelegate(name, { rpc: o.rpc }); sp.success('Delegate rotated'); console.log('  ' + c.muted('delegate ') + c.text(r.delegate)); } catch (e) { sp.error(e.message); } });
+
+    v.command('routes <name> [programs...]').description('restrict trading to router program ids (none = clear → any)').option('--rpc <url>', 'cluster RPC')
+      .action(async (name, programs, o) => { const sp = spinner('Setting routes…'); try { await vault.setRoutes(name, programs || [], { rpc: o.rpc }); sp.success((programs && programs.length) ? `Restricted to ${programs.length} route(s)` : 'Cleared — any router allowed'); } catch (e) { sp.error(e.message); } });
+
+    v.command('rule <name>').description('commit a Verified-Intents price rule (or --clear)')
+      .option('--clear', 'remove the rule')
+      .option('--oracle <pk>', 'price signer pubkey')
+      .option('--feed <hex>', '32-byte feed id (hex)')
+      .option('--op <op>', 'lt | lte | gt | gte')
+      .option('--threshold <n>', 'price threshold', parseFloat)
+      .option('--max-age <s>', 'max attestation age (secs)', (x) => parseInt(x, 10))
+      .option('--in-mint <pk>', 'pin input mint (direction)')
+      .option('--out-mint <pk>', 'pin output mint (direction)')
+      .option('--rpc <url>', 'cluster RPC')
+      .action(async (name, o) => {
+        const sp = spinner('Setting rule…');
+        try {
+          if (o.clear) { await vault.setRule(name, { op: 0, feed: Buffer.alloc(32) }, { rpc: o.rpc }); sp.success('Rule cleared'); return; }
+          const op = OP_CODE[o.op];
+          if (!op) throw new Error('--op must be one of lt | lte | gt | gte (or use --clear)');
+          if (!o.oracle || !o.feed || o.threshold == null || o.maxAge == null) throw new Error('rule needs --oracle --feed --op --threshold --max-age');
+          const feed = Buffer.from(o.feed.replace(/^0x/, ''), 'hex');
+          await vault.setRule(name, { oracle: o.oracle, feed, op, threshold: o.threshold, maxAge: o.maxAge, inMint: o.inMint, outMint: o.outMint }, { rpc: o.rpc });
+          sp.success(`Rule set: price ${o.op} ${o.threshold} (≤${o.maxAge}s)`);
+        } catch (e) { sp.error(e.message); }
+      });
+
+    v.command('close <name>').description('close the vault, returning rent to the owner').option('-y, --yes', 'skip confirmation').option('--rpc <url>', 'cluster RPC')
+      .action(async (name, o) => {
+        if (!o.yes) {
+          if (!process.stdin.isTTY) { console.log(c.warn('  refusing to close without --yes (non-interactive)')); return; }
+          if (!(await askConfirm(`Close vault "${name}"? Withdraw funds first.`, { initialValue: false }))) return;
+        }
+        const sp = spinner('Closing…');
+        try { const sig = await vault.close(name, { rpc: o.rpc }); sp.success(`Closed ${name}`); console.log('  ' + c.dim('tx ') + c.accent(sig)); }
+        catch (e) { sp.error(e.message); }
       });
   },
 };
