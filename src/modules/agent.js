@@ -352,6 +352,7 @@ export default {
           console.log('  ' + c.muted('vault    ') + c.accent(r.vault));
           console.log('  ' + c.muted('delegate ') + c.text(r.delegate) + c.dim('  (trade-only — can never withdraw)'));
           console.log('  ' + c.dim(`fund it:  circuit agent vault fund ${name} <sol>`));
+          console.log('  ' + c.warn('beta') + c.dim(' — the vault program is unaudited; fund small amounts until you\'re comfortable'));
         } catch (e) { sp.error(e.message); }
       });
 

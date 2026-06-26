@@ -19,7 +19,7 @@
 [![Status](https://img.shields.io/badge/status-beta-orange)](https://github.com/Circuit-LLM/circuit-cli)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
-> **Beta software.** circuit-cli is under active development. Expect breaking changes between releases, incomplete features, and rough edges. Chat spends real CIRC — start small until you're comfortable with how it behaves.
+> **Beta software.** circuit-cli is under active development. Expect breaking changes between releases, incomplete features, and rough edges. Chat spends real CIRC and agents trade real funds — start small until you're comfortable with how it behaves.
 
 [Website](https://circuitllm.xyz) · [OPS Terminal](https://circuitllm.xyz/data) · [Telegram](https://t.me/circuitllm) · [X / Twitter](https://x.com/CircuitLLM)
 
