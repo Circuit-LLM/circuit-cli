@@ -5,6 +5,7 @@ import {
 } from '../ui/index.js';
 import { screenFrame } from '../core/render.js';
 import { agents } from '../services/agents.js';
+import { makeWallet } from '../services/wallet.js';
 import { pct, num, timeAgo } from '../util/format.js';
 
 // Load a verified-intent rule file (docs/verified-intents.md): JSON with { rule,
@@ -190,6 +191,7 @@ export default {
       .option('--cooldown <ms>', 'custody: min ms between trades', (v) => parseInt(v, 10), 30000)
       .option('--rule <file>', 'verified-intent rule file (JSON) — signer re-derives every trade')
       .option('--require-verified', 'reject any trade the rule + authenticated inputs don\'t justify')
+      .option('--owner <addr>', 'withdraw address funds can be pulled back to (default: your wallet)')
       .option('--live', 'trade real funds (default: paper)')
       .action(async (name, o) => {
         const sp = spinner('Creating agent…');
@@ -199,6 +201,9 @@ export default {
             verified = loadRuleFile(o.rule);
             if (!o.cloud) sp.warn?.('--rule binds at the off-box signer; it has full effect with --cloud');
           }
+          // Owner = the wallet funds can be withdrawn back to. Default to your own wallet so an
+          // agent is never a one-way deposit — you can always pull your SOL home.
+          const owner = o.owner || (o.cloud ? makeWallet().address : undefined) || undefined;
           const policy = o.cloud
             ? { maxNotionalSol: o.maxTrade, maxDailySol: o.maxDaily, cooldownMs: o.cooldown, paper: !o.live,
                 ...(o.requireVerified ? { requireVerifiedIntent: true } : {}) }
@@ -209,11 +214,13 @@ export default {
             config: { scanIntervalMs: o.interval || 5000, strategy: o.strategy, paperTrading: !o.live, tradeSizeSol: Math.min(0.01, o.maxTrade) },
             policy,
             verified,
+            owner,
           });
           sp.success(`Created "${name}" (${m.driver}${m.id ? ' · ' + m.id : ''})`);
           if (m.address) {
             console.log('  ' + c.muted('custody ') + c.text('off-box signer') + c.dim(' — the signing key never touches the host'));
-            console.log('  ' + c.muted('wallet  ') + c.accent(m.address));
+            console.log('  ' + c.muted('wallet  ') + c.accent(m.address) + c.dim('   (fund this)'));
+            console.log('  ' + c.muted('owner   ') + (owner ? c.text(owner) + c.dim('   (withdraw back here)') : c.warn('none — set one before funding:  circuit agent owner ' + name + ' <addr>')));
             if (verified) console.log('  ' + c.muted('rule    ') + c.text(verified.rule.id) + c.dim(o.requireVerified ? '   (required — forged trades rejected)' : '   (advisory)'));
             console.log('  ' + c.dim(`fund it, then:  circuit agent start ${name}`) + (o.live ? c.warn('   LIVE — real funds') : c.dim('   (paper)')));
           } else {
@@ -230,14 +237,47 @@ export default {
       const sp = spinner(`Stopping ${name}…`);
       try { await agents.stop(name); sp.success(`Stopped ${name}`); } catch (e) { sp.error(e.message); }
     });
-    cmd.command('destroy <name>').description('stop and delete an agent').option('-y, --yes', 'skip confirmation').action(async (name, o) => {
+    cmd.command('destroy <name>').description('stop and delete an agent (refuses if the wallet still holds funds)').option('-y, --yes', 'skip confirmation').option('--force', 'destroy even if funds remain (abandons them — irreversible)').action(async (name, o) => {
       if (!o.yes) {
         if (!process.stdin.isTTY) { console.log(c.warn('  refusing to destroy without --yes (non-interactive)')); return; }
         const ok = await askConfirm(`Destroy "${name}"? This stops it and deletes its record.`, { initialValue: false });
         if (!ok) return;
       }
       const sp = spinner(`Destroying ${name}…`);
-      try { await agents.destroy(name); sp.success(`Destroyed ${name}`); } catch (e) { sp.error(e.message); }
+      try { await agents.destroy(name, { force: !!o.force }); sp.success(`Destroyed ${name}`); }
+      catch (e) {
+        sp.error(e.message);
+        if (/not-empty|still holds/.test(e.message)) console.log(c.dim(`  withdraw first:  circuit agent withdraw ${name}   ·   or abandon:  circuit agent destroy ${name} --force`));
+      }
+    });
+
+    // ── owner-recovery: get your funds (or your key) back out ──
+    cmd.command('owner <name> <address>').description('set the withdraw address funds can be pulled back to').action(async (name, address) => {
+      const sp = spinner('Setting owner…');
+      try { await agents.setOwner(name, address); sp.success(`Owner set → ${address}`); } catch (e) { sp.error(e.message); }
+    });
+    cmd.command('withdraw <name>').description('withdraw the agent wallet’s SOL back to its owner address').option('--amount <sol>', 'SOL to withdraw (default: all)', parseFloat).action(async (name, o) => {
+      const sp = spinner('Withdrawing…');
+      try {
+        const r = await agents.withdraw(name, o.amount);
+        sp.success(`Withdrew ${(Number(r.lamports) / 1e9).toFixed(6)} SOL → ${r.owner}`);
+        console.log('  ' + c.dim('tx ') + c.accent(r.signature));
+      } catch (e) { sp.error(e.message); }
+    });
+    cmd.command('export <name>').description('export the agent wallet’s PRIVATE KEY (take full custody)').option('-y, --yes', 'skip confirmation').action(async (name, o) => {
+      console.log(c.warn('  ⚠  This reveals the wallet’s private key. After export the off-box "can’t be stolen" guarantee'));
+      console.log(c.warn('     no longer holds for this wallet — store it like any hot-wallet key. Stop the agent first.'));
+      if (!o.yes) {
+        if (!process.stdin.isTTY) { console.log(c.warn('  refusing to export without --yes (non-interactive)')); return; }
+        if (!(await askConfirm(`Reveal the private key for "${name}"?`, { initialValue: false }))) return;
+      }
+      const sp = spinner('Exporting…');
+      try {
+        const r = await agents.exportKey(name);
+        sp.success('Exported — import this into any Solana wallet');
+        console.log('  ' + c.muted('address ') + c.accent(r.address));
+        console.log('  ' + c.muted('secret  ') + c.text(r.secretKeyBase58));
+      } catch (e) { sp.error(e.message); }
     });
     cmd.command('list').description('list agents').action(() => renderList(ctx, true));
     cmd.command('status <name>').description('agent status + P&L').action((name) => showStatus(ctx, name, true));

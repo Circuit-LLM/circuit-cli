@@ -29,10 +29,11 @@ export const agents = {
   exists: (name) => !!readMeta(name),
   meta: (name) => readMeta(name),
 
-  async create(name, { driver = 'local', workload = 'agentd', config: cfg = {}, env = {}, policy, verified } = {}) {
+  async create(name, { driver = 'local', workload = 'agentd', config: cfg = {}, env = {}, policy, verified, owner } = {}) {
     if (!/^[a-zA-Z0-9_-]{1,32}$/.test(name)) throw new Error('name must be 1-32 chars [a-zA-Z0-9_-]');
     if (readMeta(name)) throw new Error(`agent "${name}" already exists`);
-    const meta = { name, driver, spec: { workload, config: cfg, env, ...(policy ? { policy } : {}), ...(verified ? { verified } : {}) }, createdAt: Date.now() };
+    // owner = the wallet funds can be withdrawn back to (the ONLY withdraw destination).
+    const meta = { name, driver, ...(owner ? { owner } : {}), spec: { workload, config: cfg, env, ...(policy ? { policy } : {}), ...(verified ? { verified } : {}) }, createdAt: Date.now() };
     writeMeta(name, meta);
     try {
       const r = await driverFor(meta).create(name, meta);
@@ -50,11 +51,26 @@ export const agents = {
   stop: (name) => withMeta(name, (m, d) => d.stop(name, m)),
   status: (name) => withMeta(name, (m, d) => d.status(name, m)),
   logs: (name, o) => withMeta(name, (m, d) => d.logs(name, m, o)),
+  // Owner-recovery: pull funds back to the committed owner / take full custody of the key.
+  withdraw: (name, amountSol) => withMeta(name, (m, d) => {
+    if (!d.withdraw) throw new Error('withdraw is only for cloud agents (off-box custody)');
+    return d.withdraw(m, amountSol);
+  }),
+  exportKey: (name) => withMeta(name, (m, d) => {
+    if (!d.exportKey) throw new Error('export is only for cloud agents (off-box custody)');
+    return d.exportKey(m);
+  }),
+  setOwner: (name, owner) => withMeta(name, (m, d) => {
+    if (!d.setOwner) throw new Error('owner is only for cloud agents (off-box custody)');
+    return d.setOwner(m, owner);
+  }),
 
-  async destroy(name) {
+  async destroy(name, { force = false } = {}) {
     const m = readMeta(name);
     if (!m) throw new Error(`no agent "${name}"`);
-    await driverFor(m).destroy(name, m).catch(() => {});
+    // Surface a safe-destroy refusal (non-empty wallet) — do NOT delete local state if the
+    // off-box wallet still holds funds. Retry with force to abandon them.
+    await driverFor(m).destroy(name, m, { force });
     fs.rmSync(path.join(AGENTS_DIR, name), { recursive: true, force: true });
   },
 

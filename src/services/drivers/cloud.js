@@ -3,7 +3,7 @@ import { config } from '../../config.js';
 
 const base = () => config.endpoints.controlPlane.replace(/\/$/, '');
 
-async function api(method, p, body) {
+async function api(method, p, body, timeoutMs = 10000) {
   const r = await fetch(base() + p, {
     method,
     headers: {
@@ -11,7 +11,7 @@ async function api(method, p, body) {
       ...(process.env.CIRCUIT_CLOUD_KEY ? { Authorization: `Bearer ${process.env.CIRCUIT_CLOUD_KEY}` } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!r.ok) {
     const e = await r.json().catch(() => ({}));
@@ -32,8 +32,21 @@ export async function create(name, meta) {
     spec: meta.spec,
     policy: meta.spec?.policy,
     ...(meta.spec?.verified ? { verified: meta.spec.verified } : {}),
+    ...(meta.owner ? { owner: meta.owner } : {}),
   });
   return { id: agent.id, address: agent.address };
+}
+
+// Owner-recovery (off-box custody). The control plane proxies to the signer; the key never
+// reaches the CLI for withdraw (only export deliberately returns it).
+export async function withdraw(meta, amountSol) {
+  return api('POST', `/v1/agents/${meta.id}/withdraw`, amountSol != null ? { amountSol } : {}, 50000);
+}
+export async function exportKey(meta) {
+  return api('POST', `/v1/agents/${meta.id}/export`, {});
+}
+export async function setOwner(meta, owner) {
+  return api('PUT', `/v1/agents/${meta.id}/owner`, { owner });
 }
 
 export async function start(_name, meta) {
@@ -52,6 +65,6 @@ export async function logs(_name, meta, { tail = 20 } = {}) {
   const { lines } = await api('GET', `/v1/agents/${meta.id}/logs`);
   return (lines || []).slice(-tail);
 }
-export async function destroy(_name, meta) {
-  await api('DELETE', `/v1/agents/${meta.id}`);
+export async function destroy(_name, meta, { force = false } = {}) {
+  await api('DELETE', `/v1/agents/${meta.id}${force ? '?force=1' : ''}`);
 }
