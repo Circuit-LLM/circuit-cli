@@ -23,6 +23,7 @@ async function api(method, p, body) {
 const map = (a) => ({
   state: a.state, node: a.nodeId, health: a.health, id: a.id,
   address: a.address, policy: a.policy, custody: a.custody, paper: a.paper,
+  verified: a.verified,
 });
 
 export async function create(name, meta) {
@@ -30,6 +31,7 @@ export async function create(name, meta) {
     name,
     spec: meta.spec,
     policy: meta.spec?.policy,
+    ...(meta.spec?.verified ? { verified: meta.spec.verified } : {}),
   });
   return { id: agent.id, address: agent.address };
 }

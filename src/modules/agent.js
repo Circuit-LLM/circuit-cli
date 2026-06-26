@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import {
   c, palette, sym, clearScreen, slimHeader, panel, kv, table, heading, badge,
   spinner, menuSelect, askText, askConfirm,
@@ -5,6 +6,22 @@ import {
 import { screenFrame } from '../core/render.js';
 import { agents } from '../services/agents.js';
 import { pct, num, timeAgo } from '../util/format.js';
+
+// Load a verified-intent rule file (docs/verified-intents.md): JSON with { rule,
+// acceptedKeys, acceptedNotaries?, evidenceMaxAgeMs? }. The signer re-runs `rule` on
+// the authenticated inputs an agent submits before signing a trade.
+function loadRuleFile(file) {
+  let j;
+  try { j = JSON.parse(fs.readFileSync(file, 'utf8')); }
+  catch (e) { throw new Error(`could not read rule file ${file}: ${e.message}`); }
+  if (!j.rule || !j.rule.id) throw new Error('rule file must contain { rule: { id, when, then, requires }, acceptedKeys }');
+  return {
+    rule: j.rule,
+    acceptedKeys: j.acceptedKeys || {},
+    acceptedNotaries: j.acceptedNotaries || [],
+    evidenceMaxAgeMs: j.evidenceMaxAgeMs,
+  };
+}
 
 const stateColor = {
   running: c.ok, scheduled: c.warn, pending: c.warn, stopping: c.warn,
@@ -171,23 +188,33 @@ export default {
       .option('--max-trade <sol>', 'custody: max SOL per trade', parseFloat, 0.05)
       .option('--max-daily <sol>', 'custody: max SOL per day', parseFloat, 0.5)
       .option('--cooldown <ms>', 'custody: min ms between trades', (v) => parseInt(v, 10), 30000)
+      .option('--rule <file>', 'verified-intent rule file (JSON) — signer re-derives every trade')
+      .option('--require-verified', 'reject any trade the rule + authenticated inputs don\'t justify')
       .option('--live', 'trade real funds (default: paper)')
       .action(async (name, o) => {
         const sp = spinner('Creating agent…');
         try {
+          let verified;
+          if (o.rule) {
+            verified = loadRuleFile(o.rule);
+            if (!o.cloud) sp.warn?.('--rule binds at the off-box signer; it has full effect with --cloud');
+          }
           const policy = o.cloud
-            ? { maxNotionalSol: o.maxTrade, maxDailySol: o.maxDaily, cooldownMs: o.cooldown, paper: !o.live }
+            ? { maxNotionalSol: o.maxTrade, maxDailySol: o.maxDaily, cooldownMs: o.cooldown, paper: !o.live,
+                ...(o.requireVerified ? { requireVerifiedIntent: true } : {}) }
             : undefined;
           const m = await agents.create(name, {
             driver: o.cloud ? 'cloud' : 'local',
             workload: o.workload,
             config: { scanIntervalMs: o.interval || 5000, strategy: o.strategy, paperTrading: !o.live, tradeSizeSol: Math.min(0.01, o.maxTrade) },
             policy,
+            verified,
           });
           sp.success(`Created "${name}" (${m.driver}${m.id ? ' · ' + m.id : ''})`);
           if (m.address) {
             console.log('  ' + c.muted('custody ') + c.text('off-box signer') + c.dim(' — the signing key never touches the host'));
             console.log('  ' + c.muted('wallet  ') + c.accent(m.address));
+            if (verified) console.log('  ' + c.muted('rule    ') + c.text(verified.rule.id) + c.dim(o.requireVerified ? '   (required — forged trades rejected)' : '   (advisory)'));
             console.log('  ' + c.dim(`fund it, then:  circuit agent start ${name}`) + (o.live ? c.warn('   LIVE — real funds') : c.dim('   (paper)')));
           } else {
             console.log(c.dim(`  start it:  circuit agent start ${name}`));
@@ -214,6 +241,30 @@ export default {
     });
     cmd.command('list').description('list agents').action(() => renderList(ctx, true));
     cmd.command('status <name>').description('agent status + P&L').action((name) => showStatus(ctx, name, true));
+    cmd
+      .command('verify <name>')
+      .description('show the verified-intent contract (committed rule + trusted producer keys)')
+      .action(async (name) => {
+        const sp = spinner('Fetching…');
+        try {
+          const s = await agents.status(name);
+          sp.stop?.();
+          const v = s.verified;
+          if (!v || !v.rule) {
+            console.log(c.dim('  no committed rule — trades rely on policy caps + deterrence (see docs/verified-intents.md).'));
+            console.log(c.dim('  add one at create:  circuit agent create <name> --cloud --rule rule.json --require-verified'));
+            return;
+          }
+          const cond = (v.rule.when || []).map((w) => `${w.input} ${w.op} ${w.value}`).join('  AND  ') || '—';
+          const then = `${v.rule.then?.kind ?? '?'} ${v.rule.then?.token ?? v.rule.then?.tokenInput ?? ''}`.trim();
+          console.log('  ' + c.muted('rule       ') + c.text(v.rule.id));
+          console.log('  ' + c.muted('enforced   ') + (s.policy?.requireVerifiedIntent ? c.ok('yes — the signer rejects any trade this rule doesn\'t justify') : c.warn('advisory (set --require-verified to enforce)')));
+          console.log('  ' + c.muted('when       ') + c.text(cond));
+          console.log('  ' + c.muted('then       ') + c.text(then));
+          console.log('  ' + c.muted('requires   ') + c.text((v.rule.requires || []).join(', ') || '—') + c.dim('  (inputs that must be backed by evidence)'));
+          console.log('  ' + c.muted('trusts     ') + c.text(`${Object.keys(v.acceptedKeys || {}).length} producer key(s)`) + (v.acceptedNotaries?.length ? c.text(` + ${v.acceptedNotaries.length} notary`) : ''));
+        } catch (e) { sp.error(e.message); }
+      });
     cmd.command('logs <name>').description('recent agent logs').option('--tail <n>', 'lines', (v) => parseInt(v, 10), 25).action((name, o) => showLogs(ctx, name, o.tail, true));
 
     cmd
