@@ -1,5 +1,6 @@
 // Cloud driver — drives an agent through the Control Plane API.
 import { config } from '../../config.js';
+import { ownerAuthHeaders } from '../owner-auth.js';
 
 const base = () => config.endpoints.controlPlane.replace(/\/$/, '');
 
@@ -9,6 +10,7 @@ async function api(method, p, body, timeoutMs = 10000) {
     headers: {
       'Content-Type': 'application/json',
       ...(process.env.CIRCUIT_CLOUD_KEY ? { Authorization: `Bearer ${process.env.CIRCUIT_CLOUD_KEY}` } : {}),
+      ...ownerAuthHeaders(method, p, body), // wallet-signed owner auth (required by a multi-tenant CP)
     },
     body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(timeoutMs),
