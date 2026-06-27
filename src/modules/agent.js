@@ -189,6 +189,8 @@ export default {
       .description('create an agent (default local; --cloud to host on the mesh)')
       .option('--cloud', 'run on the Circuit cloud')
       .option('--workload <w>', 'agentd | circuit-agent', 'agentd')
+      .option('--bundle <dir>', 'publish a local agent directory as a content-addressed bundle and run it on the mesh (B1)')
+      .option('--entry <file>', 'bundle entry file', 'agent.js')
       .option('--interval <ms>', 'scan interval', (v) => parseInt(v, 10))
       .option('--strategy <s>', 'strategy label', 'dip-reversal')
       .option('--max-trade <sol>', 'custody: max SOL per trade', parseFloat, 0.05)
@@ -206,6 +208,16 @@ export default {
             verified = loadRuleFile(o.rule);
             if (!o.cloud) sp.warn?.('--rule binds at the off-box signer; it has full effect with --cloud');
           }
+          // B1: publish the agent directory as a content-addressed, signed bundle. Bundles run on the
+          // mesh node-host, so this implies --cloud. The publisher (your wallet) becomes the owner.
+          let bundle;
+          if (o.bundle) {
+            const { publishDir } = await import('../services/bundle.js');
+            const path = await import('node:path');
+            bundle = publishDir({ dir: path.resolve(o.bundle), agentId: name, entry: o.entry });
+            o.cloud = true;
+            sp.message?.(`Published bundle ${bundle.sha256.slice(0, 12)}…`);
+          }
           // Owner = the wallet funds can be withdrawn back to. Default to your own wallet so an
           // agent is never a one-way deposit — you can always pull your SOL home.
           const owner = o.owner || (o.cloud ? makeWallet().address : undefined) || undefined;
@@ -220,8 +232,10 @@ export default {
             policy,
             verified,
             owner,
+            bundle,
           });
           sp.success(`Created "${name}" (${m.driver}${m.id ? ' · ' + m.id : ''})`);
+          if (bundle) console.log('  ' + c.muted('bundle  ') + c.text(bundle.sha256.slice(0, 16) + '…') + c.dim('   (verified on the node before it runs)'));
           if (m.address) {
             console.log('  ' + c.muted('custody ') + c.text('off-box signer') + c.dim(' — the signing key never touches the host'));
             console.log('  ' + c.muted('wallet  ') + c.accent(m.address) + c.dim('   (fund this)'));

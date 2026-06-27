@@ -29,11 +29,13 @@ export const agents = {
   exists: (name) => !!readMeta(name),
   meta: (name) => readMeta(name),
 
-  async create(name, { driver = 'local', workload = 'agentd', config: cfg = {}, env = {}, policy, verified, owner } = {}) {
+  async create(name, { driver = 'local', workload = 'agentd', config: cfg = {}, env = {}, policy, verified, owner, bundle } = {}) {
     if (!/^[a-zA-Z0-9_-]{1,32}$/.test(name)) throw new Error('name must be 1-32 chars [a-zA-Z0-9_-]');
     if (readMeta(name)) throw new Error(`agent "${name}" already exists`);
-    // owner = the wallet funds can be withdrawn back to (the ONLY withdraw destination).
-    const meta = { name, driver, ...(owner ? { owner } : {}), spec: { workload, config: cfg, env, ...(policy ? { policy } : {}), ...(verified ? { verified } : {}) }, createdAt: Date.now() };
+    // owner = the wallet funds can be withdrawn back to (the ONLY withdraw destination). For a bundle
+    // the owner MUST equal the publisher (the control plane enforces this), so default owner→publisher.
+    if (bundle && !owner) owner = bundle.manifest?.publisherPubkey;
+    const meta = { name, driver, ...(owner ? { owner } : {}), spec: { workload, config: cfg, env, ...(policy ? { policy } : {}), ...(verified ? { verified } : {}), ...(bundle ? { bundle } : {}) }, createdAt: Date.now() };
     writeMeta(name, meta);
     try {
       const r = await driverFor(meta).create(name, meta);
