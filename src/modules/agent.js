@@ -353,6 +353,9 @@ export default {
           console.log('  ' + c.muted('delegate ') + c.text(r.delegate) + c.dim('  (trade-only — can never withdraw)'));
           console.log('  ' + c.dim(`fund it:  circuit agent vault fund ${name} <sol>`));
           console.log('  ' + c.warn('beta') + c.dim(' — the vault program is unaudited; fund small amounts until you\'re comfortable'));
+          console.log('  ' + c.warn('floor') + c.dim(' — custody is enforced on-chain, but a compromised host can still trade at a BAD RATE.'));
+          console.log('  ' + c.dim(`          For an UNTRUSTED host, set an execution floor:  circuit agent vault rule ${name} \\`));
+          console.log('  ' + c.dim('            --oracle <pk> --feed <hex> --op gte --threshold <rate> --max-age 60 --in-mint <m> --out-mint <m> --max-slippage 100'));
         } catch (e) { sp.error(e.message); }
       });
 
