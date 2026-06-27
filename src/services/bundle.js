@@ -16,10 +16,16 @@ export const BUNDLE_SCHEMA = 1;
 // Ed25519 PKCS8 framing (RFC 8410) — reconstruct a signing key from a Solana keypair's 32-byte seed.
 const PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
 
+// MUST stay byte-identical to circuit-agent-cloud/lib/bundle.js manifestSigningBytes (locked by a test).
+function canonResources(r) {
+  return r ? { maxCpu: r.maxCpu ?? null, maxMemoryMb: r.maxMemoryMb ?? null } : null;
+}
 export function manifestSigningBytes(m) {
   const canon = {
     agentId: m.agentId,
+    egress: Array.isArray(m.egress) ? [...m.egress].sort() : [],
     entry: m.entry,
+    resources: canonResources(m.resources),
     runtime: m.runtime,
     schema: BUNDLE_SCHEMA,
     sdk: m.sdk ?? null,
@@ -27,6 +33,8 @@ export function manifestSigningBytes(m) {
   };
   return Buffer.from(JSON.stringify(canon));
 }
+
+const isSafeEntry = (e) => typeof e === 'string' && /^[\w][\w.-]*$/.test(e) && e !== '.' && e !== '..' && !e.includes('/');
 
 function signWithSeed(seed32, msg) {
   const priv = crypto.createPrivateKey({ key: Buffer.concat([PKCS8_PREFIX, Buffer.from(seed32)]), format: 'der', type: 'pkcs8' });
@@ -56,8 +64,9 @@ export function storeRoot() {
  * Build + sign + store a bundle from a source directory.
  * @returns {{ ref, url, sha256, runtime, manifest }} the bundle block to attach to an agent spec.
  */
-export function publishDir({ dir, agentId, entry = 'agent.js', sdk = null, runtime = 'node' }) {
-  if (runtime !== 'node') throw new Error(`publish supports runtime 'node' only (got '${runtime}')`);
+export function publishDir({ dir, agentId, entry = 'agent.js', sdk = null, runtime = 'node', egress = [], resources = null }) {
+  if (runtime !== 'node' && runtime !== 'oci') throw new Error(`unknown runtime '${runtime}'`);
+  if (!isSafeEntry(entry)) throw new Error(`unsafe entry '${entry}'`);
   if (!fs.existsSync(path.join(dir, entry))) throw new Error(`entry '${entry}' not found in ${dir}`);
   const kp = loadKeypair();
   if (!kp) throw new Error('no wallet — set a Circuit wallet to publish (the publisher must be the agent owner)');
@@ -65,7 +74,7 @@ export function publishDir({ dir, agentId, entry = 'agent.js', sdk = null, runti
   const bytes = packDir(dir);
   const sha256 = sha256hex(bytes);
   const manifest = {
-    schema: BUNDLE_SCHEMA, agentId, runtime, entry, sdk, sha256,
+    schema: BUNDLE_SCHEMA, agentId, runtime, entry, sdk, egress, resources, sha256,
     publisherPubkey: kp.publicKey.toBase58(),
   };
   manifest.sig = bs58.encode(signWithSeed(kp.secretKey.slice(0, 32), manifestSigningBytes(manifest)));
