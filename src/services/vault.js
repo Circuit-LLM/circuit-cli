@@ -23,6 +23,7 @@ const disc = (name) => crypto.createHash('sha256').update(`global:${name}`).dige
 const u64le = (v) => { const b = Buffer.alloc(8); b.writeBigUInt64LE(BigInt(v)); return b; };
 const i64le = (v) => { const b = Buffer.alloc(8); b.writeBigInt64LE(BigInt(v)); return b; };
 const u32le = (v) => { const b = Buffer.alloc(4); b.writeUInt32LE(v); return b; };
+const u16le = (v) => { const b = Buffer.alloc(2); b.writeUInt16LE(v); return b; };
 const pk = (v) => new PublicKey(v).toBuffer();
 
 const programId = () => new PublicKey(VAULT.programId);
@@ -156,13 +157,13 @@ export async function setRoutes(name, programs, { rpc } = {}) {
 export async function setRule(name, rule, { rpc } = {}) {
   const m = metaOrThrow(name);
   const owner = ownerKeypair();
-  const { oracle, feed, op, threshold, maxAge, inMint, outMint } = rule;
+  const { oracle, feed, op, threshold, maxAge, inMint, outMint, maxSlippageBps } = rule;
   const feedBuf = Buffer.from(feed); if (feedBuf.length !== 32) throw new Error('feed must be 32 bytes');
   const z = PublicKey.default.toBuffer();
   const data = Buffer.concat([
     disc('set_rule'), pk(oracle ?? PublicKey.default), feedBuf, Buffer.from([op]),
     i64le(threshold ?? 0), i64le(maxAge ?? 0),
-    inMint ? pk(inMint) : z, outMint ? pk(outMint) : z,
+    inMint ? pk(inMint) : z, outMint ? pk(outMint) : z, u16le(maxSlippageBps ?? 0),
   ]);
   return send(rpc || m.rpc, ix(ownerMetas(new PublicKey(m.vault), owner.publicKey), data), [owner]);
 }

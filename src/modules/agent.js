@@ -420,6 +420,7 @@ export default {
       .option('--max-age <s>', 'max attestation age (secs)', (x) => parseInt(x, 10))
       .option('--in-mint <pk>', 'pin input mint (direction)')
       .option('--out-mint <pk>', 'pin output mint (direction)')
+      .option('--max-slippage <bps>', 'execution floor: reject min_out below the attested rate by > this (bps; 0 = off)', (x) => parseInt(x, 10))
       .option('--rpc <url>', 'cluster RPC')
       .action(async (name, o) => {
         const sp = spinner('Setting rule…');
@@ -429,8 +430,8 @@ export default {
           if (!op) throw new Error('--op must be one of lt | lte | gt | gte (or use --clear)');
           if (!o.oracle || !o.feed || o.threshold == null || o.maxAge == null) throw new Error('rule needs --oracle --feed --op --threshold --max-age');
           const feed = Buffer.from(o.feed.replace(/^0x/, ''), 'hex');
-          await vault.setRule(name, { oracle: o.oracle, feed, op, threshold: o.threshold, maxAge: o.maxAge, inMint: o.inMint, outMint: o.outMint }, { rpc: o.rpc });
-          sp.success(`Rule set: price ${o.op} ${o.threshold} (≤${o.maxAge}s)`);
+          await vault.setRule(name, { oracle: o.oracle, feed, op, threshold: o.threshold, maxAge: o.maxAge, inMint: o.inMint, outMint: o.outMint, maxSlippageBps: o.maxSlippage }, { rpc: o.rpc });
+          sp.success(`Rule set: price ${o.op} ${o.threshold} (≤${o.maxAge}s)` + (o.maxSlippage ? `, floor ${o.maxSlippage}bps` : ''));
         } catch (e) { sp.error(e.message); }
       });
 
