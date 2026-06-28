@@ -1,21 +1,31 @@
-// The landing-page intro: a yellow mesh of nodes wires itself up around the CIRCUIT wordmark,
-// then settles. Pure-terminal (ANSI repaint, no deps beyond chalk + figlet). Degrades to nothing
-// on a non-TTY or a too-narrow window — the caller then prints the static banner instead.
+// The landing-page intro: a yellow mesh wires itself up around the CIRCUIT wordmark, then comes
+// alive as signal pulses route through it. Pure terminal, no deps beyond chalk + figlet.
+//
+// Robustness (this is the second cut — the first drifted on Windows):
+//   • ABSOLUTE repaint — every frame homes the cursor (ESC[H) and clears downward (ESC[J). No
+//     relative cursor-up math, so nothing cascades when the terminal scrolls.
+//   • Fits-in-viewport or it bails — if the window is too short/narrow the caller draws the static
+//     banner instead. We never render a region taller than the screen.
+//   • Safe glyphs only — nodes ● / ○ and edge dots ·, all of which the CLI already renders. No
+//     width-ambiguous hexagons.
+//   • Bulletproof teardown — the cursor and raw-mode are always restored; any throw → static banner.
+//   • Escape hatch — CIRCUIT_NO_ANIM=1 skips it entirely.
 import chalk from 'chalk';
 import figlet from 'figlet';
-import { palette, sym } from '../theme.js';
+import { palette } from '../theme.js';
 import { cols } from './layout.js';
 
 const ESC = '\x1b';
-const up = (n) => (n > 0 ? `${ESC}[${n}A` : '');
-const CLR_EOL = `${ESC}[K`;
+const HOME = `${ESC}[H`;
+const CLR_DOWN = `${ESC}[J`;
+const CLR_ALL = `${ESC}[2J${ESC}[H`;
 const HIDE = `${ESC}[?25l`;
 const SHOW = `${ESC}[?25h`;
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Deterministic PRNG — the constellation looks the same on every launch (brand identity).
+// Deterministic PRNG — the mesh looks the same every launch (brand identity).
 function lcg(seed) {
   let s = seed >>> 0;
   return () => (s = (s * 1664525 + 1013904223) >>> 0) / 0xffffffff;
@@ -32,7 +42,7 @@ function art() {
   return _art;
 }
 
-// Bresenham cell-line between two nodes, endpoints dropped (nodes draw themselves).
+// Bresenham cell-line, endpoints dropped (the nodes draw themselves).
 function linePts(a, b) {
   const pts = [];
   let x0 = a.x;
@@ -57,16 +67,16 @@ function buildScene(W) {
   const lines = art();
   const artW = Math.max(...lines.map((l) => l.length));
   const artH = lines.length;
-  const H = artH + 6;
-  const artTop = 3;
+  const artTop = 2;
+  const H = artH + 4; // 2-row mesh band above + below
   const artLeft = Math.floor((W - artW) / 2);
   const inArt = (x, y) => y >= artTop && y < artTop + artH && x >= artLeft - 1 && x <= artLeft + artW;
 
   const rnd = lcg(0x0c1c2173);
   const nodes = [];
-  const want = Math.min(18, Math.max(8, Math.floor(W / 5)));
+  const want = clamp(Math.floor(W / 5), 8, 20);
   let guard = 0;
-  while (nodes.length < want && guard++ < 1200) {
+  while (nodes.length < want && guard++ < 1500) {
     const x = 1 + Math.floor(rnd() * (W - 2));
     const y = Math.floor(rnd() * H);
     if (inArt(x, y)) continue;
@@ -74,7 +84,7 @@ function buildScene(W) {
     nodes.push({ x, y, ph: Math.floor(rnd() * 6) });
   }
 
-  // Connect near nodes (visual distance — cells are ~1:2, so weight y by 2), cap degree at 3.
+  // Connect near nodes (cells are ~1:2, so weight y by 2), cap degree at 3.
   const deg = nodes.map(() => 0);
   const d2 = (a, b) => (a.x - b.x) ** 2 + ((a.y - b.y) * 2) ** 2;
   const pairs = [];
@@ -83,109 +93,159 @@ function buildScene(W) {
   pairs.sort((a, b) => a[2] - b[2]);
   const edges = [];
   for (const [i, j, d] of pairs) {
-    if (d > 22 * 22) continue;
+    if (d > 24 * 24) continue;
     if (deg[i] >= 3 || deg[j] >= 3) continue;
-    edges.push([i, j]);
+    edges.push({ a: i, b: j, trail: linePts(nodes[i], nodes[j]) });
     deg[i] += 1;
     deg[j] += 1;
   }
-  const trails = edges.map(([i, j]) => linePts(nodes[i], nodes[j]));
-  return { lines, artW, artH, H, artTop, artLeft, inArt, nodes, trails };
+  // adjacency for the routing pulses (only edges with a drawable trail)
+  const adj = nodes.map(() => []);
+  edges.forEach((e, ei) => {
+    if (!e.trail.length) return;
+    adj[e.a].push({ ei, fwd: true });
+    adj[e.b].push({ ei, fwd: false });
+  });
+
+  return { lines, artW, artH, H, artTop, artLeft, inArt, nodes, edges, adj, rnd };
 }
 
-const cNode = chalk.hex(palette.bright);
-const cHot = chalk.hex('#fff6cf');
-const cEdge = chalk.hex(palette.gold);
-const cArt = chalk.hex(palette.yellow).bold;
+const cWord = chalk.hex(palette.yellow).bold; // signature yellow wordmark
+const cLit = chalk.hex(palette.bright); // a lit node
+const cDim = chalk.hex('#7d6c22'); // an unlit node / edge dot
+const cPulse = chalk.hex('#fff6cf'); // a routing pulse, brightest
 
-// One frame → array of (already padded+coloured) row strings.
-function frameRows(scene, f, frames, termW, W) {
-  const { lines, artH, H, artTop, artLeft, inArt, nodes, trails } = scene;
-  const buf = Array.from({ length: H }, () => Array(W).fill(null));
+// Render one frame to an array of (left-padded, coloured) row strings.
+function frameRows(scene, f, frames, termW, W, signals) {
+  const { lines, artH, H, artTop, artLeft, inArt, nodes, edges } = scene;
+  const buf = Array.from({ length: H }, () => Array(W).fill(0)); // 0 empty,1 edge,2 dimNode,3 litNode,4 pulse
 
-  const nodePhase = Math.max(1, Math.floor(frames * 0.35));
+  const nodePhase = Math.max(1, Math.floor(frames * 0.3));
   const nodesIn = clamp(Math.ceil(((f + 1) / nodePhase) * nodes.length), 0, nodes.length);
-  const edgeStart = Math.floor(frames * 0.32);
-  const edgeLen = Math.max(1, Math.floor(frames * 0.45));
+  const edgeStart = Math.floor(frames * 0.28);
+  const edgeLen = Math.max(1, Math.floor(frames * 0.4));
   const edgeProg = clamp((f - edgeStart) / edgeLen, 0, 1);
   const holding = f >= edgeStart + edgeLen;
 
-  // edges (drawn behind everything, masked out of the wordmark box)
-  for (const pts of trails) {
-    const show = Math.floor(pts.length * edgeProg);
-    for (let p = 0; p < show; p++) {
-      const { x, y } = pts[p];
-      if (y < 0 || y >= H || x < 0 || x >= W || inArt(x, y)) continue;
-      if (!buf[y][x]) buf[y][x] = 'edge';
-    }
+  const put = (x, y, v) => {
+    if (y < 0 || y >= H || x < 0 || x >= W || inArt(x, y)) return;
+    if (v > buf[y][x]) buf[y][x] = v; // brighter wins
+  };
+
+  // edges drawing in
+  for (const e of edges) {
+    const show = Math.floor(e.trail.length * edgeProg);
+    for (let p = 0; p < show; p++) put(e.trail[p].x, e.trail[p].y, 1);
   }
-  // nodes
+  // nodes: lit once their phase arrives; before the hold they glow in dim then brighten
   for (let n = 0; n < nodesIn; n++) {
     const nd = nodes[n];
-    if (nd.y < 0 || nd.y >= H || nd.x < 0 || nd.x >= W) continue;
-    buf[nd.y][nd.x] = holding && (f + nd.ph) % 6 === 0 ? 'hot' : 'node';
+    const lit = holding || f - n > 2;
+    put(nd.x, nd.y, lit ? 3 : 2);
   }
-  // wordmark on top
+  // routing pulses (hold only)
+  if (signals) for (const s of signals) {
+    const tr = edges[s.ei]?.trail;
+    if (!tr || !tr.length) continue;
+    const pt = s.fwd ? tr[clamp(s.pos, 0, tr.length - 1)] : tr[clamp(tr.length - 1 - s.pos, 0, tr.length - 1)];
+    if (pt) put(pt.x, pt.y, 4);
+  }
+  // wordmark on top, always
   for (let r = 0; r < artH; r++) {
     const row = lines[r];
-    for (let x = 0; x < row.length; x++) {
-      if (row[x] !== ' ') buf[artTop + r][artLeft + x] = `art:${row[x]}`;
-    }
+    for (let x = 0; x < row.length; x++) if (row[x] !== ' ') buf[artTop + r][artLeft + x] = 5;
   }
 
   const pad = ' '.repeat(Math.max(0, Math.floor((termW - W) / 2)));
-  return buf.map((row) => pad + row.map((cell) => {
-    if (cell === null) return ' ';
-    if (cell === 'edge') return cEdge('·');
-    if (cell === 'node') return cNode(sym.node);
-    if (cell === 'hot') return cHot(sym.node);
-    return cArt(cell.slice(4)); // art:<char>
-  }).join(''));
+  const rows = [];
+  for (let y = 0; y < H; y++) {
+    let line = pad;
+    for (let x = 0; x < W; x++) {
+      const v = buf[y][x];
+      if (v === 5) line += cWord(lines[y - artTop][x - artLeft]);
+      else if (v === 4) line += cPulse('●');
+      else if (v === 3) line += cLit('●');
+      else if (v === 2) line += cDim('○');
+      else if (v === 1) line += cDim('·');
+      else line += ' ';
+    }
+    rows.push(line);
+  }
+  return rows;
 }
 
-// The settled frame, for the non-animated fallback / preview.
+// Advance the routing pulses one step; reroute at nodes.
+function stepSignals(scene, signals) {
+  const { edges, adj, rnd } = scene;
+  for (const s of signals) {
+    const tr = edges[s.ei]?.trail;
+    if (!tr || !tr.length) { s.pos = 0; s.ei = pickEdge(scene); s.fwd = true; continue; }
+    s.pos += 1;
+    if (s.pos >= tr.length) {
+      const arrived = s.fwd ? edges[s.ei].b : edges[s.ei].a;
+      const opts = adj[arrived].filter((o) => o.ei !== s.ei);
+      const next = (opts.length ? opts : adj[arrived])[Math.floor(rnd() * Math.max(1, (opts.length ? opts : adj[arrived]).length))];
+      if (next) { s.ei = next.ei; s.fwd = next.fwd; s.pos = 0; }
+      else { s.ei = pickEdge(scene); s.fwd = true; s.pos = 0; }
+    }
+  }
+}
+function pickEdge(scene) {
+  const drawable = scene.edges.map((e, i) => (e.trail.length ? i : -1)).filter((i) => i >= 0);
+  return drawable.length ? drawable[Math.floor(scene.rnd() * drawable.length)] : 0;
+}
+
+// The settled frame, for the static fallback / preview.
 export function meshStill() {
   const termW = cols();
   const W = Math.min(termW, 82);
   const scene = buildScene(W);
-  return frameRows(scene, 999, 26, termW, W).join('\n');
+  return frameRows(scene, 999, 30, termW, W, null).join('\n');
 }
 
-export async function playMeshIntro({ frames = 26, frameMs = 70 } = {}) {
+export async function playMeshIntro({ frames = 30, frameMs = 60 } = {}) {
+  if (process.env.CIRCUIT_NO_ANIM) throw new Error('disabled');
   const out = process.stdout;
   if (!out.isTTY) throw new Error('no-tty');
   const termW = cols();
+  const termH = out.rows || 24;
   const W = Math.min(termW, 82);
   const scene = buildScene(W);
-  if (W < scene.artW + 6) throw new Error('too-narrow');
+  if (W < scene.artW + 8 || termH < scene.H + 2) throw new Error('too-small'); // → static banner
 
   const stdin = process.stdin;
   const stdinTty = !!stdin.isTTY;
   let skip = false;
   let rawPrev;
   const onKey = (d) => {
-    if (d && d[0] === 3) { out.write(SHOW); process.exit(0); }
+    if (d && d[0] === 3) { out.write(`${SHOW}\n`); process.exit(0); }
     skip = true;
   };
 
+  // pulses start a couple steps apart so they don't overlap
+  const signals = [];
+  for (let k = 0; k < Math.min(3, scene.edges.filter((e) => e.trail.length).length); k++) {
+    signals.push({ ei: pickEdge(scene), fwd: true, pos: -k * 2 });
+  }
+  const holdStart = Math.floor(frames * 0.28) + Math.max(1, Math.floor(frames * 0.4));
+
   try {
-    out.write(HIDE);
+    out.write(HIDE + CLR_ALL);
     if (stdinTty) {
       rawPrev = stdin.isRaw;
-      try { stdin.setRawMode(true); } catch { /* not all TTYs */ }
+      try { stdin.setRawMode(true); } catch { /* some TTYs */ }
       stdin.resume();
       stdin.on('data', onKey);
     }
-    out.write('\n');
-    out.write('\n'.repeat(scene.H)); // reserve the region
-
     for (let f = 0; f < frames; f++) {
-      const rows = frameRows(scene, skip ? frames - 1 : f, frames, termW, W);
-      out.write(up(scene.H));
-      out.write(rows.map((r) => r + CLR_EOL).join('\n') + '\n');
+      const ff = skip ? frames - 1 : f;
+      if (ff >= holdStart) stepSignals(scene, signals);
+      const rows = frameRows(scene, ff, frames, termW, W, ff >= holdStart ? signals : null);
+      out.write(HOME + rows.join('\n') + CLR_DOWN);
       if (skip) break;
       await delay(frameMs);
     }
+    out.write('\n'); // park the cursor below the mesh for the rest of the splash
   } finally {
     if (stdinTty) {
       stdin.removeListener('data', onKey);
