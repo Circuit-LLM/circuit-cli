@@ -25,7 +25,7 @@ export const VAULT = {
 };
 
 const DEFAULTS = {
-  version: '0.2.0',
+  version: '0.2.1',
   web: 'circuitllm.xyz',
   model: 'Qwen2.5-72B · decentralized',
   // The model id the inference gateway accepts. 'circuit' is the alias the
@@ -57,8 +57,9 @@ const DEFAULTS = {
     nodePublic: 'https://api.circuitllm.xyz',
     node: 'http://localhost:18940',
     priceFeed: 'http://localhost:18941',
-    // Agent cloud control plane. Set CIRCUIT_CONTROL_PLANE to the public URL to ship widely.
-    controlPlane: process.env.CIRCUIT_CONTROL_PLANE || 'http://127.0.0.1:18980',
+    // Agent cloud control plane. Defaults to the public mesh; override with CIRCUIT_CONTROL_PLANE
+    // (e.g. http://127.0.0.1:18980 when running a control plane locally).
+    controlPlane: process.env.CIRCUIT_CONTROL_PLANE || 'https://agents.circuitllm.xyz',
     // Off-box signer (custody). The control plane talks to it; the CLI uses this
     // only to read an agent's wallet/policy directly when asked.
     signer: process.env.CIRCUIT_SIGNER || 'http://127.0.0.1:18981',

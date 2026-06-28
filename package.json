@@ -1,6 +1,6 @@
 {
   "name": "circuit-cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "The command line for the Circuit LLM decentralized intelligence network",
   "type": "module",
   "private": true,

@@ -6,7 +6,7 @@ import { screenFrame } from '../core/render.js';
 import { CIRC, SOL_MINT } from '../config.js';
 import { makeWallet } from '../services/wallet.js';
 import {
-  loadKeypair, isValidAddress, walletExists,
+  loadKeypair, isValidAddress, walletExists, walletSource,
   generateKeypair, keypairFromInput, saveKeypair, secretKeyBase58,
 } from '../services/solana.js';
 import { priceFeed } from '../services/priceFeed.js';
@@ -100,14 +100,24 @@ async function balancesView(ctx, standalone, address) {
       return;
     }
     console.log('');
-    const body = [
+    // Be transparent about WHICH wallet this is. If CIRCUIT_WALLET (env) is set it overrides a
+    // wallet saved via the keystore — surface that so a surprising balance is explained, not silent.
+    const src = w.readOnly ? null : walletSource();
+    const rows = [
       heading('Wallet', sym.cube) + (w.readOnly ? c.dim('   (read-only)') : ''),
       '',
       kv('Address', c.text(w.address)),
+    ];
+    if (src && src.source !== 'none') rows.push(kv('Loaded from', c.dim(src.label)));
+    rows.push(
       kv('SOL', c.text(tokenAmount(sol))),
       kv('CIRC', c.text(tokenAmount(circ)) + (circUsd && circ ? c.dim(`   (${money(circ * circUsd)})`) : '')),
-    ].join('\n');
-    console.log(panel(body, { title: 'WALLET', color: palette.green }));
+    );
+    if (src && src.overridesFile) {
+      rows.push('', c.warn(`${sym.cross} CIRCUIT_WALLET (env) is overriding your saved ~/.circuit/id.json.`));
+      rows.push(c.dim('   This is the wallet shown above. `unset CIRCUIT_WALLET` to use the one you connected.'));
+    }
+    console.log(panel(rows.join('\n'), { title: 'WALLET', color: palette.green }));
   });
 }
 

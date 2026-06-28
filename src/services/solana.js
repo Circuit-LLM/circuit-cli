@@ -66,6 +66,25 @@ export function loadKeypair() {
   }
 }
 
+// Report WHERE the active signing key comes from + the address it resolves to, so the UI can be
+// transparent about it. CIRCUIT_WALLET (env) takes precedence over the saved keyfile — when BOTH
+// exist, the env SILENTLY overrides the wallet a user "connected" (saved to id.json). `overridesFile`
+// flags exactly that case so we can warn instead of showing a surprising balance.
+export function walletSource() {
+  const hasFile = fs.existsSync(WALLET_FILE);
+  if (process.env.CIRCUIT_WALLET) {
+    let address = null;
+    try { address = Keypair.fromSecretKey(bs58.decode(process.env.CIRCUIT_WALLET.trim())).publicKey.toString(); } catch {}
+    return { source: 'env', label: 'CIRCUIT_WALLET env', address, overridesFile: hasFile };
+  }
+  if (hasFile) {
+    let address = null;
+    try { address = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(WALLET_FILE, 'utf8')))).publicKey.toString(); } catch {}
+    return { source: 'file', label: '~/.circuit/id.json', address, overridesFile: false };
+  }
+  return { source: 'none', label: null, address: null, overridesFile: false };
+}
+
 export function isValidAddress(s) {
   try {
     // eslint-disable-next-line no-new
