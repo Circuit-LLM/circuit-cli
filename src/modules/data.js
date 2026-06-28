@@ -51,24 +51,28 @@ async function showDips(ctx, standalone) {
     const sp = spinner('Scanning for dips…');
     let data;
     try {
-      data = await priceFeed.losers('5m', 20);
-      sp.success('Dip scanner (5m)');
+      data = await priceFeed.losers(20);
+      sp.success('Dip scanner (1h)');
     } catch (e) {
       sp.error(`Dip feed unavailable: ${e.message}`);
       return;
     }
     console.log('');
-    console.log(heading('Dipping now (5m)', sym.arrow));
+    console.log(heading('Dipping now (1h)', sym.arrow));
     console.log('');
     const list = data.movers || data.losers || [];
     const rows = list.slice(0, 15).map((m) => ({
       tok: m.symbol && m.symbol !== '?' ? m.symbol : shortMint(m.mint),
-      chg: pct(m.changePct),
+      chg: pct(m.change1h ?? m.changePct),
     }));
+    if (!rows.length) {
+      console.log(`  ${c.dim('No dippers right now — the market is flat or rising.')}`);
+      return;
+    }
     console.log(
       table(rows, [
         { key: 'tok', label: 'TOKEN' },
-        { key: 'chg', label: '5m', align: 'right', color: () => c.err },
+        { key: 'chg', label: '1h', align: 'right', color: () => c.err },
       ]),
     );
   });

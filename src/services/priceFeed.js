@@ -31,5 +31,7 @@ export const priceFeed = {
     pf(`/candles/${mint}?window=${window}&limit=${limit}`, { timeout: 6000 }),
   trending: (limit = 12) => pf(`/trending?limit=${limit}`, { timeout: 10000 }),
   active: (limit = 50, minTxns = 2) => pf(`/active?limit=${limit}&minTxns=${minTxns}`, { timeout: 6000 }),
-  losers: (window = '5m', limit = 30) => pf(`/losers?window=${window}&limit=${limit}`, { timeout: 6000 }),
+  // On-chain dippers — tokens with negative ~1h change (the feed ignores `window`).
+  // maxChange skips extreme rugs so the list reads as dip candidates, not crashes.
+  losers: (limit = 20, maxChange = -40) => pf(`/losers?limit=${limit}&maxChange=${maxChange}`, { timeout: 6000 }),
 };
