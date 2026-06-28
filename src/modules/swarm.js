@@ -15,20 +15,21 @@ function signalLine(sg) {
 async function overview(ctx, standalone) {
   await screenFrame({ status: ctx.status, standalone, footer: 'press any key to go back' }, async () => {
     const sp = spinner('Loading the swarm…');
-    let stats;
-    let lb;
-    let feed;
-    try {
-      [stats, lb, feed] = await Promise.all([
-        circuitNode.swarmStats(),
-        circuitNode.swarmLeaderboard(),
-        circuitNode.swarmFeed(10),
-      ]);
-      sp.success('Swarm');
-    } catch (e) {
-      sp.error(`Swarm data unavailable: ${e.message}`);
+    // Resolve independently — leaderboard or feed being unavailable shouldn't blank the
+    // whole view. Only the core stats are required.
+    const [statsR, lbR, feedR] = await Promise.allSettled([
+      circuitNode.swarmStats(),
+      circuitNode.swarmLeaderboard(),
+      circuitNode.swarmFeed(10),
+    ]);
+    if (statsR.status !== 'fulfilled') {
+      sp.error(`Swarm data unavailable: ${statsR.reason?.message || 'fetch failed'}`);
       return;
     }
+    sp.success('Swarm');
+    const stats = statsR.value;
+    const lb    = lbR.status === 'fulfilled' ? lbR.value : {};
+    const feed  = feedR.status === 'fulfilled' ? feedR.value : {};
     const a = stats.agents || {};
     const s = stats.signals || {};
     console.log('');

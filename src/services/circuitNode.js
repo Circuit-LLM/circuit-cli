@@ -23,7 +23,10 @@ export const circuitNode = {
   // Swarm registry — public first (works for any user), local fallback.
   swarmStats: () => tryBases([PUBLIC(), LOCAL()], '/api/swarm/stats', { timeout: 6000 }),
   swarmLeaderboard: () => tryBases([PUBLIC(), LOCAL()], '/api/swarm/leaderboard', { timeout: 6000 }),
-  swarmFeed: (limit = 50) => tryBases([PUBLIC(), LOCAL()], `/api/swarm/feed?limit=${limit}`, { timeout: 6000 }),
+  // feed-public: free, capped (newest ≤200), identical shape to the x402-gated /feed. The CLI is a
+  // free public client, so it reads the public feed — the paid /feed is for paying agents. (Using
+  // /feed here 402'd, then fell back to localhost and surfaced as "fetch failed".)
+  swarmFeed: (limit = 50) => tryBases([PUBLIC(), LOCAL()], `/api/swarm/feed-public?limit=${limit}`, { timeout: 6000 }),
   swarmHoldings: () => tryBases([PUBLIC(), LOCAL()], '/api/swarm/holdings', { timeout: 6000 }),
 
   // Market/network data — local first (free on the VPS); public only as a probe
