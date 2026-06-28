@@ -74,9 +74,9 @@ function buildScene(W) {
 
   const rnd = lcg(0x0c1c2173);
   const nodes = [];
-  const want = clamp(Math.floor(W / 5), 8, 20);
+  const want = clamp(Math.floor(W / 3.2), 16, 40); // denser, wider field
   let guard = 0;
-  while (nodes.length < want && guard++ < 1500) {
+  while (nodes.length < want && guard++ < 3000) {
     const x = 1 + Math.floor(rnd() * (W - 2));
     const y = Math.floor(rnd() * H);
     if (inArt(x, y)) continue;
@@ -93,7 +93,7 @@ function buildScene(W) {
   pairs.sort((a, b) => a[2] - b[2]);
   const edges = [];
   for (const [i, j, d] of pairs) {
-    if (d > 24 * 24) continue;
+    if (d > 28 * 28) continue;
     if (deg[i] >= 3 || deg[j] >= 3) continue;
     edges.push({ a: i, b: j, trail: linePts(nodes[i], nodes[j]) });
     deg[i] += 1;
@@ -198,7 +198,7 @@ function pickEdge(scene) {
 // The settled frame, for the static fallback / preview.
 export function meshStill() {
   const termW = cols();
-  const W = Math.min(termW, 82);
+  const W = Math.min(termW, 124);
   const scene = buildScene(W);
   return frameRows(scene, 999, 30, termW, W, null).join('\n');
 }
@@ -209,7 +209,7 @@ export async function playMeshIntro({ frames = 30, frameMs = 60 } = {}) {
   if (!out.isTTY) throw new Error('no-tty');
   const termW = cols();
   const termH = out.rows || 24;
-  const W = Math.min(termW, 82);
+  const W = Math.min(termW, 124);
   const scene = buildScene(W);
   if (W < scene.artW + 8 || termH < scene.H + 2) throw new Error('too-small'); // → static banner
 
@@ -224,7 +224,7 @@ export async function playMeshIntro({ frames = 30, frameMs = 60 } = {}) {
 
   // pulses start a couple steps apart so they don't overlap
   const signals = [];
-  for (let k = 0; k < Math.min(3, scene.edges.filter((e) => e.trail.length).length); k++) {
+  for (let k = 0; k < Math.min(5, scene.edges.filter((e) => e.trail.length).length); k++) {
     signals.push({ ei: pickEdge(scene), fwd: true, pos: -k * 2 });
   }
   const holdStart = Math.floor(frames * 0.28) + Math.max(1, Math.floor(frames * 0.4));
