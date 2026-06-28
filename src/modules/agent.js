@@ -151,6 +151,62 @@ async function vaultExplainer(ctx) {
   });
 }
 
+// ── Deploy to Mesh — publish a local agent folder as a signed bundle and run it on the cloud ──
+// The folder's code is packed into a content-addressed, signed tarball (secrets auto-excluded, see
+// services/bundle.js) and pulled onto an untrusted node, which verifies the sha256 + your signature
+// before running it. Custody stays off-box (the agent gets a session token, never a key); secrets
+// never ship — the agent authenticates to Circuit via that session, and app config goes through --env.
+async function deployFlow(ctx) {
+  if (!makeWallet().address) {
+    await screenFrame({ status: ctx.status, footer: 'press any key to go back' }, () => {
+      console.log('  ' + c.warn('Connect a wallet first — the publisher signs the bundle and becomes its owner.'));
+      console.log('  ' + c.dim('Wallet → Connect a wallet, then come back.'));
+    });
+    return;
+  }
+  const dir = await askText('Path to your agent folder', { placeholder: './my-agent' });
+  if (!dir) return;
+  const entry = (await askText('Entry file', { defaultValue: 'agent.js', placeholder: 'agent.js' })) || 'agent.js';
+  const name = await askText('Name it', { placeholder: 'alpha' });
+  if (!name) return;
+
+  await screenFrame({ status: ctx.status, footer: 'press any key to continue' }, async () => {
+    const path = await import('node:path');
+    const { publishDir } = await import('../services/bundle.js');
+    const sp = spinner('Packing + signing bundle…');
+    let bundle;
+    try {
+      bundle = publishDir({ dir: path.resolve(dir.trim()), agentId: name.trim(), entry: entry.trim() });
+      sp.success(`Bundled ${bundle.fileCount} file${bundle.fileCount === 1 ? '' : 's'} → ${bundle.sha256.slice(0, 12)}…`);
+    } catch (e) {
+      sp.error(e.message);
+      return;
+    }
+    if (bundle.excludedSecrets?.length) {
+      console.log('');
+      console.log('  ' + c.warn(`${sym.bolt} kept OUT of the bundle`) + c.dim(' (secrets never ship to a host):'));
+      for (const s of bundle.excludedSecrets.slice(0, 8)) console.log('    ' + c.muted(s));
+      console.log('  ' + c.dim('The agent authenticates to Circuit via its session token — it needs no keys on the node.'));
+    }
+    console.log('');
+    const sp2 = spinner('Deploying to the mesh…');
+    try {
+      const owner = makeWallet().address; // funds can only ever be withdrawn back here
+      const m = await agents.create(name.trim(), { driver: 'cloud', config: { paperTrading: true }, owner, bundle });
+      await agents.start(name.trim());
+      sp2.success(`Deployed "${name.trim()}"${m.id ? ` · ${m.id}` : ''}`);
+      console.log('  ' + c.muted('bundle  ') + c.text(`${bundle.sha256.slice(0, 16)}…`) + c.dim('   (verified on the node before it runs)'));
+      console.log('  ' + c.muted('custody ') + c.text('off-box signer') + c.dim(' — the signing key never touches the host'));
+      if (m.address) {
+        console.log('  ' + c.muted('wallet  ') + c.accent(m.address) + c.dim('   (fund this — paper by default)'));
+        console.log('  ' + c.muted('owner   ') + c.text(owner) + c.dim('   (you can always withdraw)'));
+      }
+    } catch (e) {
+      sp2.error(e.message);
+    }
+  });
+}
+
 export default {
   id: 'agent',
   icon: sym.diamond,
@@ -165,6 +221,7 @@ export default {
       const choice = await menuSelect(c.text('Agents'), [
         { value: 'list', label: `${sym.diamond}  View agents`, hint: 'status + P&L' },
         { value: 'create', label: `${sym.spark}  Create an agent`, hint: 'local or cloud' },
+        { value: 'deploy', label: `${sym.node}  Deploy to Mesh`, hint: 'publish a local folder to the cloud' },
         { value: 'start', label: `${sym.arrow}  Start an agent` },
         { value: 'stop', label: `${sym.cross}  Stop an agent` },
         { value: 'host', label: `${sym.node}  Contribute capacity`, hint: 'lend CPU to the cloud' },
@@ -173,6 +230,7 @@ export default {
       ]);
       if (choice === 'back') return;
       if (choice === 'vault') { await vaultExplainer(ctx); continue; }
+      if (choice === 'deploy') { await deployFlow(ctx); continue; }
       if (choice === 'list') await renderList(ctx);
       else if (choice === 'create') {
         const name = await askText('Agent name', { placeholder: 'e.g. alpha' });
@@ -265,7 +323,8 @@ export default {
             bundle,
           });
           sp.success(`Created "${name}" (${m.driver}${m.id ? ' · ' + m.id : ''})`);
-          if (bundle) console.log('  ' + c.muted('bundle  ') + c.text(bundle.sha256.slice(0, 16) + '…') + c.dim('   (verified on the node before it runs)'));
+          if (bundle) console.log('  ' + c.muted('bundle  ') + c.text(bundle.sha256.slice(0, 16) + '…') + c.dim(`   (${bundle.fileCount} files · verified on the node before it runs)`));
+          if (bundle?.excludedSecrets?.length) console.log('  ' + c.warn(`${sym.bolt} kept out`) + c.dim('  ') + c.muted(bundle.excludedSecrets.slice(0, 6).join(', ')) + c.dim('  (secrets never ship — agent uses its session token)'));
           if (m.address) {
             console.log('  ' + c.muted('custody ') + c.text('off-box signer') + c.dim(' — the signing key never touches the host'));
             console.log('  ' + c.muted('wallet  ') + c.accent(m.address) + c.dim('   (fund this)'));
