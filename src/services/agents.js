@@ -103,7 +103,14 @@ export const agents = {
       fs.mkdirSync(HOME_DIR, { recursive: true });
       fs.writeFileSync(HOST_CFG, JSON.stringify(budget, null, 2));
       const hostScript = path.join(config.agentCloudDir, 'node-host', 'host.js');
-      if (!fs.existsSync(hostScript)) throw new Error(`node-host not found at ${hostScript} (set CIRCUIT_AGENT_CLOUD_DIR)`);
+      if (!fs.existsSync(hostScript)) {
+        throw new Error(
+          'CPU hosting needs the Circuit agent-host runtime, which isn\'t bundled with the CLI yet. '
+          + 'If you have a circuit-agent-cloud checkout, point the CLI at it with '
+          + 'CIRCUIT_AGENT_CLOUD_DIR=<path>. To contribute a GPU instead, run the node installer:  '
+          + 'curl -fsSL https://circuitllm.xyz/join | bash',
+        );
+      }
       const out = fs.openSync(path.join(HOME_DIR, 'host.log'), 'a');
       const env = {
         ...process.env,
