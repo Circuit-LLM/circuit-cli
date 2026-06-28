@@ -11,6 +11,20 @@ import {
 } from '../services/solana.js';
 import { priceFeed } from '../services/priceFeed.js';
 import { money, tokenAmount, shortMint } from '../util/format.js';
+import qrcode from 'qrcode-terminal';
+
+// Render an address as a compact terminal QR (half-block). Synchronous — qrcode-terminal
+// invokes the callback inline. Returns the lines, or null if anything goes wrong (we never
+// want a QR failure to hide the address itself).
+function qrLines(text) {
+  try {
+    let out = '';
+    qrcode.generate(text, { small: true }, (s) => { out = s; });
+    return out ? out.replace(/\n+$/, '').split('\n') : null;
+  } catch {
+    return null;
+  }
+}
 
 // A bare header (no pressKey) for flows that prompt — keeps the prompt clean.
 function flowHeader(ctx, standalone, title) {
@@ -267,7 +281,20 @@ export default {
         const w = makeWallet();
         await screenFrame({ status: ctx.status, footer: 'press any key to go back' }, () => {
           if (!w.address) return noWalletPanel();
-          console.log(panel([heading('Receive', sym.arrow), '', c.muted('Your address:'), '  ' + c.accent(w.address)].join('\n'), { title: 'RECEIVE' }));
+          // The QR is rendered raw (not boxed): boxen mis-counts half-block widths and
+          // ragged-pads the border, and a QR reads cleaner unframed anyway.
+          const qr = qrLines(w.address);
+          console.log('');
+          console.log('  ' + heading('Receive', sym.arrow));
+          console.log('');
+          if (qr) {
+            for (const line of qr) console.log('  ' + line);
+            console.log('');
+            console.log('  ' + c.muted('Scan the code, or copy the address:'));
+          } else {
+            console.log('  ' + c.muted('Your address:'));
+          }
+          console.log('  ' + c.accent(w.address));
         });
       } else if (choice === 'send') await sendFlow(ctx);
       else if (choice === 'swap') await swapFlow(ctx);
