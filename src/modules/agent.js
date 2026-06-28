@@ -7,6 +7,7 @@ import { screenFrame } from '../core/render.js';
 import { agents } from '../services/agents.js';
 import { makeWallet } from '../services/wallet.js';
 import * as vault from '../services/vault.js';
+import { VAULT } from '../config.js';
 import { pct, num, timeAgo } from '../util/format.js';
 
 const sol = (lamports) => (Number(lamports) / 1e9).toFixed(4);
@@ -123,6 +124,33 @@ function hostStartFlow(maxAgents) {
   return r;
 }
 
+// ── non-custodial vault explainer (what it is + devnet status + Solscan link) ──
+async function vaultExplainer(ctx) {
+  await screenFrame({ status: ctx.status, footer: 'press any key to go back' }, async () => {
+    const solscan = `https://solscan.io/account/${VAULT.programId}?cluster=devnet`;
+    const body = [
+      heading('Non-custodial Vault', sym.diamond) + '   ' + c.warn('[ DEVNET · BETA ]'),
+      '',
+      c.text('Your wallet is the SOLE withdraw authority. The agent gets a trade-only delegate key'),
+      c.text('that can ONLY swap within the on-chain guard (buy/sell, your caps, allowed routes) —'),
+      c.text('it can never withdraw. Circuit holds no keys.'),
+      '',
+      c.muted('vs. the custodial signer (default): that one is fine for paper / bootstrap, but it'),
+      c.muted('holds the agent\'s key off-box — you trust the operator. The vault removes that trust.'),
+      '',
+      kv('Status', c.warn('live on devnet — unaudited beta; fund small amounts')),
+      kv('Program', c.accent(VAULT.programId)),
+      kv('Explorer', c.dim(solscan)),
+      '',
+      c.muted('Commands:'),
+      c.dim('  circuit agent vault create <name> --max-trade <sol> --max-daily <sol>'),
+      c.dim('  circuit agent vault fund <name> <sol>      circuit agent vault status <name>'),
+      c.dim('  circuit agent vault withdraw <name> <sol>  (owner only)'),
+    ].join('\n');
+    console.log(panel(body, { title: 'VAULT', color: palette.gold }));
+  });
+}
+
 export default {
   id: 'agent',
   icon: sym.diamond,
@@ -140,9 +168,11 @@ export default {
         { value: 'start', label: `${sym.arrow}  Start an agent` },
         { value: 'stop', label: `${sym.cross}  Stop an agent` },
         { value: 'host', label: `${sym.node}  Contribute capacity`, hint: 'lend CPU to the cloud' },
+        { value: 'vault', label: `${sym.diamond}  Vault (non-custodial)`, hint: 'devnet · beta' },
         { value: 'back', label: `${sym.chevron}  Back` },
       ]);
       if (choice === 'back') return;
+      if (choice === 'vault') { await vaultExplainer(ctx); continue; }
       if (choice === 'list') await renderList(ctx);
       else if (choice === 'create') {
         const name = await askText('Agent name', { placeholder: 'e.g. alpha' });
