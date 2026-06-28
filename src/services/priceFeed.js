@@ -34,4 +34,6 @@ export const priceFeed = {
   // On-chain dippers — tokens with negative ~1h change (the feed ignores `window`).
   // maxChange skips extreme rugs so the list reads as dip candidates, not crashes.
   losers: (limit = 20, maxChange = -40) => pf(`/losers?limit=${limit}&maxChange=${maxChange}`, { timeout: 6000 }),
+  // DexScreener-enriched cards (name/symbol/marketCap/5m·1h·6h·24h change) for up to 30 mints.
+  cards: (mints) => pf(`/cards?mints=${[].concat(mints).slice(0, 30).join(',')}`, { timeout: 8000 }),
 };

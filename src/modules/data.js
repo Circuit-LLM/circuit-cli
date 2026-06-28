@@ -1,80 +1,106 @@
 import {
-  c, palette, sym, clearScreen, slimHeader, panel, heading, kv, table, brailleChart,
+  c, palette, sym, clearScreen, slimHeader, panel, heading, kv, brailleChart,
   spinner, menuSelect, askText, cols,
 } from '../ui/index.js';
 import { screenFrame } from '../core/render.js';
 import { priceFeed } from '../services/priceFeed.js';
-import { money, pct, shortMint, num } from '../util/format.js';
+import { money, pct, shortMint } from '../util/format.js';
 
 const WSOL = 'So11111111111111111111111111111111111111112';
+
+// ── compact formatters for the enriched token cards ──
+function compactUsd(n) {
+  if (n == null || !isFinite(n)) return c.dim('—');
+  const a = Math.abs(n);
+  if (a >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
+  if (a >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
+  if (a >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
+  return `$${n.toFixed(0)}`;
+}
+function fmtPrice(n) {
+  if (n == null || !isFinite(n)) return c.dim('—');
+  if (n >= 1) return `$${n.toFixed(4)}`;
+  if (n >= 0.0001) return `$${n.toFixed(6)}`;
+  return `$${n.toPrecision(3)}`; // sub-0.0001 memecoin prices
+}
+function fmtChg(v) {
+  if (v == null || !isFinite(v)) return c.dim('  —');
+  const s = `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`;
+  return v >= 0 ? c.ok(s) : c.err(s);
+}
+// One token rendered as a 3-line card: symbol · name + price/mc/liq, the 5m/1h/6h/24h row, full mint.
+function tokenCard(card, { change1h } = {}) {
+  const symbol = card?.symbol || shortMint(card?.mint || '', 4, 4);
+  const name = card?.name && card.name !== card?.symbol ? c.muted(` · ${card.name}`) : '';
+  const ch = card?.change || {};
+  return [
+    `  ${c.accent(sym.dot)}  ${c.text(symbol)}${name}   ${c.bold(fmtPrice(card?.priceUsd))}`
+      + `   ${c.dim('mc')} ${compactUsd(card?.marketCap)}   ${c.dim('liq')} ${compactUsd(card?.liquidity)}`,
+    `     ${c.dim('5m')} ${fmtChg(ch.m5)}   ${c.dim('1h')} ${fmtChg(ch.h1 ?? change1h)}   ${c.dim('6h')} ${fmtChg(ch.h6)}   ${c.dim('24h')} ${fmtChg(ch.h24)}`,
+    `     ${c.muted(card?.mint || '')}`,
+  ].join('\n');
+}
+
+// Fetch DexScreener cards for a list of mints; never throws (cards are best-effort enrichment).
+async function cardsFor(mints) {
+  try {
+    return (await priceFeed.cards(mints)).cards || {};
+  } catch {
+    return {};
+  }
+}
 
 async function showTrending(ctx, standalone) {
   await screenFrame({ status: ctx.status, standalone, footer: 'press any key to go back' }, async () => {
     const sp = spinner('Loading trending tokens…');
-    let data;
+    let tokens;
     try {
-      data = await priceFeed.trending(12);
+      tokens = ((await priceFeed.trending(12)).tokens || []).filter((t) => t.mint !== WSOL);
       sp.success('Trending');
     } catch (e) {
       sp.error(`Trending unavailable: ${e.message}`);
       return;
     }
+    if (!tokens.length) {
+      console.log(`\n  ${c.muted('No trending tokens right now.')}`);
+      return;
+    }
+    const top = tokens.slice(0, 10);
+    const cards = await cardsFor(top.map((t) => t.mint));
     console.log('');
     console.log(heading('Trending', sym.diamond));
     console.log('');
-    const rows = (data.tokens || [])
-      .filter((t) => t.mint !== WSOL) // wrapped SOL is the quote asset, not a trending token
-      .slice(0, 12)
-      .map((t, i) => ({
-        n: String(i + 1),
-        tok: shortMint(t.mint),
-        price: t.priceUsd != null ? money(t.priceUsd) : c.dim('—'),
-        src: t.source || c.dim('—'),
-      }));
-    if (!rows.length) {
-      console.log(c.muted('  No trending tokens right now.'));
-      return;
+    for (const t of top) {
+      console.log(tokenCard(cards[t.mint] || { mint: t.mint, priceUsd: t.priceUsd }));
+      console.log('');
     }
-    console.log(
-      table(rows, [
-        { key: 'n', label: '#' },
-        { key: 'tok', label: 'TOKEN' },
-        { key: 'price', label: 'PRICE', align: 'right' },
-        { key: 'src', label: 'SOURCE' },
-      ]),
-    );
   });
 }
 
 async function showDips(ctx, standalone) {
   await screenFrame({ status: ctx.status, standalone, footer: 'press any key to go back' }, async () => {
     const sp = spinner('Scanning for dips…');
-    let data;
+    let losers;
     try {
-      data = await priceFeed.losers(20);
+      losers = (await priceFeed.losers(20)).losers || [];
       sp.success('Dip scanner (1h)');
     } catch (e) {
       sp.error(`Dip feed unavailable: ${e.message}`);
       return;
     }
+    if (!losers.length) {
+      console.log(`\n  ${c.dim('No dippers right now — the market is flat or rising.')}`);
+      return;
+    }
+    const top = losers.slice(0, 10);
+    const cards = await cardsFor(top.map((l) => l.mint));
     console.log('');
     console.log(heading('Dipping now (1h)', sym.arrow));
     console.log('');
-    const list = data.movers || data.losers || [];
-    const rows = list.slice(0, 15).map((m) => ({
-      tok: m.symbol && m.symbol !== '?' ? m.symbol : shortMint(m.mint),
-      chg: pct(m.change1h ?? m.changePct),
-    }));
-    if (!rows.length) {
-      console.log(`  ${c.dim('No dippers right now — the market is flat or rising.')}`);
-      return;
+    for (const l of top) {
+      console.log(tokenCard(cards[l.mint] || { mint: l.mint }, { change1h: l.change1h }));
+      console.log('');
     }
-    console.log(
-      table(rows, [
-        { key: 'tok', label: 'TOKEN' },
-        { key: 'chg', label: '1h', align: 'right', color: () => c.err },
-      ]),
-    );
   });
 }
 
