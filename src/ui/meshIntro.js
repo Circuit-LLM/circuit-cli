@@ -251,6 +251,9 @@ export async function playMeshIntro({ frames = 30, frameMs = 60 } = {}) {
       stdin.removeListener('data', onKey);
       try { stdin.setRawMode(rawPrev || false); } catch { /* noop */ }
       stdin.pause();
+      // Discard any leftover bytes from a skip-keypress (e.g. an arrow's ESC [ A tail) so the
+      // splash's "press any key" and the menu start from a clean stdin — avoids the input stall.
+      try { while (stdin.read() !== null) { /* drain */ } } catch { /* noop */ }
     }
     out.write(SHOW);
   }

@@ -7,7 +7,9 @@ export const width = (s) => stripAnsi(s).length;
 export const cols = () => Math.max(40, process.stdout.columns || 80);
 export const rows = () => Math.max(10, process.stdout.rows || 24);
 
-export const clearScreen = () => process.stdout.write('\x1B[2J\x1B[3J\x1B[H');
+// 2J (clear screen) + H (home). Deliberately NOT 3J (wipe scrollback) — 3J is sluggish on the
+// Windows console and added visible lag to every screen redraw for no real benefit.
+export const clearScreen = () => process.stdout.write('\x1B[2J\x1B[H');
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export function center(line, w = cols()) {

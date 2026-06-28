@@ -41,16 +41,30 @@ export function pressKey(label = 'press any key to continue', { silent = false }
     stdin.resume();
     const onData = (d) => {
       stdin.removeListener('data', onData);
-      try {
-        stdin.setRawMode(prev || false);
-      } catch {}
-      stdin.pause();
+      stdin.pause(); // pause first → any trailing bytes of a multi-byte key buffer instead of leaking
       if (d && d[0] === 3) {
+        try { stdin.setRawMode(prev || false); } catch {}
         process.stdout.write('\n');
         process.exit(0);
       }
-      resolve();
+      // Drain the rest of a multi-byte keypress (an arrow is ESC [ A) so the next consumer — the
+      // clack menu — doesn't inherit a dangling ESC and stall on its escape-sequence timeout.
+      setImmediate(() => {
+        drainStdin();
+        try { stdin.setRawMode(prev || false); } catch {}
+        resolve();
+      });
     };
     stdin.on('data', onData);
   });
+}
+
+// Discard any buffered bytes sitting in stdin (typically the tail of a multi-byte key). Call with
+// stdin paused — in paused mode read() returns buffered chunks until empty. This is what prevents a
+// stale/partial ESC from making the next raw-mode reader (the menu) wait out an escape-sequence
+// timeout, which is the "the main menu freezes for a moment before arrows work" bug.
+export function drainStdin() {
+  const stdin = process.stdin;
+  if (!stdin.isTTY) return;
+  try { while (stdin.read() !== null) { /* discard */ } } catch { /* noop */ }
 }
