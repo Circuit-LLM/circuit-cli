@@ -1,7 +1,6 @@
 // The Circuit design system — one place for every colour, gradient and glyph.
 // Swap the palette here and the whole CLI re-skins.
 import chalk from 'chalk';
-import gradient from 'gradient-string';
 
 // Circuit brand — warm gold/yellow on near-black, matching the dashboards and
 // circuitllm.xyz. The signature is electric yellow (#ffe000); gold and bright
@@ -18,10 +17,11 @@ export const palette = {
   dim: '#5a4e1a',
 };
 
-// The signature Circuit gradient: gold → yellow → bright (a glowing-gold sweep).
-export const brand = gradient([palette.gold, palette.yellow, palette.bright]);
-export const brandAlt = gradient([palette.bright, palette.amber]);
-export const grad = (...stops) => gradient(stops);
+// Brand mark — solid signature yellow, no gradient. (Was a gold→yellow→bright sweep; the flat
+// single-colour wordmark reads cleaner, especially the big CIRCUIT on the landing page.)
+export const brand = (s) => chalk.hex(palette.yellow)(s);
+export const brandAlt = (s) => chalk.hex(palette.amber)(s);
+export const grad = (..._stops) => (s) => chalk.hex(palette.yellow)(s);
 
 // Semantic colours.
 export const c = {

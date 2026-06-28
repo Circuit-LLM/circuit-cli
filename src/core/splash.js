@@ -4,6 +4,7 @@ import { config } from '../config.js';
 import {
   c, palette, sym, renderBanner, renderWordmark, clearScreen, center, centerBlock, sleep, spinner,
 } from '../ui/index.js';
+import { playMeshIntro } from '../ui/meshIntro.js';
 
 async function checkMesh() {
   try {
@@ -35,8 +36,19 @@ function infoPanel(status) {
 
 export async function splash() {
   clearScreen();
-  console.log('\n');
-  console.log(renderBanner());
+  // Animated mesh-node intro around the wordmark; falls back to the static banner on a
+  // non-TTY / too-narrow window (or if anything goes wrong — the splash must never hang).
+  let animated = false;
+  try {
+    await playMeshIntro();
+    animated = true;
+  } catch {
+    animated = false;
+  }
+  if (!animated) {
+    console.log('\n');
+    console.log(renderBanner());
+  }
   console.log('');
   console.log(renderWordmark());
   console.log('\n');
