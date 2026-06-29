@@ -1,7 +1,7 @@
 // The x402 micropayment flow, shared by inference and the data gateway.
 // requestFn(extraHeaders) -> Promise<Response>. On 402, parse the payment
 // requirements, pay CIRC from the wallet, and retry with X-Payment-Signature.
-import { sleep } from '../ui/layout.js';
+import { sleep } from '../util/async.js';
 
 export class PaymentRequiredError extends Error {
   constructor(payment) {

@@ -67,7 +67,7 @@ Legend: **C** = command, **S** = interactive screen. Readiness: ✅ ship now · 
 
 ### chat — talk to the decentralized 72B  ✅
 - `circuit chat ["prompt"]` one-shot/stream · pipe stdin · interactive REPL (S)
-- Flags `--model --temp --system --max-tokens --json`; `circuit chat models`
+- Flags `--model --temp --system --max-tokens --json --models`
 - **Live CIRC cost meter** per request (amount, USD, payment txSig)
 - Services: `inference`, `wallet` (x402)
 

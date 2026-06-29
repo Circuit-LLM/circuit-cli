@@ -175,7 +175,7 @@ export default {
   },
   register(cmd, ctx) {
     cmd.command('trending').description('trending tokens').action(() => showTrending(ctx, true));
-    cmd.command('dips').description('tokens dipping now (5m)').action(() => showDips(ctx, true));
+    cmd.command('dips').description('tokens dipping now (1h)').action(() => showDips(ctx, true));
     cmd
       .command('token <mint>')
       .description('price, liquidity & chart for a token')

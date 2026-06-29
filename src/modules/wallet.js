@@ -211,27 +211,35 @@ async function swapFlow(ctx) {
     return;
   }
   const amountRaw = BigInt(Math.round(amt * 10 ** inDec));
+  flowHeader(ctx, false, 'Swap');
+  const sp = spinner('Fetching best route…');
   let quote;
-  await screenFrame({ status: ctx.status, footer: 'press any key to continue' }, async () => {
-    const sp = spinner('Fetching best route…');
-    try {
-      quote = await w.swapQuote(inMint, outMint, amountRaw.toString());
-      sp.success('Quote');
-    } catch (e) {
-      sp.error(`No route: ${e.message}`);
-      return;
-    }
-    const outDec = outSym === 'SOL' ? 9 : CIRC.decimals;
-    const out = Number(quote.outAmount) / 10 ** outDec;
-    console.log('');
-    console.log(panel([
-      kv('You pay', c.text(`${amt} ${inSym}`)),
-      kv('You get', c.text(`≈ ${tokenAmount(out)} ${outSym}`)),
-      kv('Impact', c.text(`${(Number(quote.priceImpactPct) * 100 || 0).toFixed(2)}%`)),
-    ].join('\n'), { title: 'SWAP QUOTE' }));
-  });
-  if (!quote) return;
-  const ok = await askConfirm(`Execute this swap?`, { initialValue: false });
+  try {
+    quote = await w.swapQuote(inMint, outMint, amountRaw.toString());
+    sp.success('Quote');
+  } catch (e) {
+    sp.error(`No route: ${e.message}`);
+    await pressKey('press any key to go back');
+    return;
+  }
+  const outDec = outSym === 'SOL' ? 9 : CIRC.decimals;
+  const out = Number(quote.outAmount) / 10 ** outDec;
+  const impactPct = Number(quote.priceImpactPct) * 100 || 0;
+  const impactStr = `${impactPct.toFixed(2)}%`;
+  const SLIPPAGE_PCT = 1; // matches the 100-bps default used by swapQuote/swap
+  console.log('');
+  console.log(panel([
+    kv('You pay', c.text(`${amt} ${inSym}`)),
+    kv('You get', c.text(`≈ ${tokenAmount(out)} ${outSym}`)),
+    kv('Price impact', impactPct >= 3 ? c.err(impactStr) : impactPct >= 1 ? c.warn(impactStr) : c.text(impactStr)),
+    kv('Max slippage', c.text(`${SLIPPAGE_PCT}%`)),
+  ].join('\n'), { title: 'SWAP QUOTE' }));
+  if (impactPct >= 3) {
+    console.log('\n  ' + c.err(`${sym.bolt} High price impact — this pool is thin, you may lose value. Try a smaller amount.`));
+  }
+  console.log('');
+  // Confirm with the quote still on screen — don't scroll it away behind a pressKey first.
+  const ok = await askConfirm('Execute this swap?', { initialValue: false });
   if (!ok) return;
   await screenFrame({ status: ctx.status, footer: 'press any key to go back' }, async () => {
     const sp = spinner('Swapping…');

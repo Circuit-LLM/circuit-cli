@@ -49,7 +49,7 @@
 |------|-----|-------|
 | **Node.js ≥ 18** | Runtime (uses native `fetch`) | [nodejs.org](https://nodejs.org) |
 | **A Solana wallet** | Sign chat payments, send & swap | Generate one in-app (`circuit wallet generate`) or import an existing key |
-| **CIRC + a little SOL** | Chat pays ~$0.03 in CIRC per request; SOL covers tx fees | Earn it, swap for it (`circuit wallet swap`), or buy on Pump.fun |
+| **CIRC + a little SOL** | Chat pays ~$0.03 in CIRC per request; SOL covers tx fees | Earn it, swap for it (in `circuit wallet`), or buy on Pump.fun |
 
 Read-only features (market data, the swarm, network health) need **no wallet at all**.
 

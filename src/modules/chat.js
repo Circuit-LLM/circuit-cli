@@ -57,8 +57,13 @@ async function repl(ctx) {
           process.stdout.write(c.text(t));
         },
       });
-      messages.push({ role: 'assistant', content: res.content });
-      process.stdout.write('\n');
+      if (res.content && res.content.trim()) {
+        messages.push({ role: 'assistant', content: res.content });
+        process.stdout.write('\n');
+      } else {
+        // 200 with no tokens — don't append an empty turn or render it as a normal reply.
+        process.stdout.write('\n  ' + c.warn(`${sym.bolt} no content returned`) + '\n');
+      }
       console.log(costLine(res));
       console.log('');
     } catch (e) {
