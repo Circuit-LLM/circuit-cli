@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import zlib from 'node:zlib';
 import bs58 from 'bs58';
 import { loadKeypair } from './solana.js';
 
@@ -115,22 +115,62 @@ function listIncluded(dir) {
   return { files: files.sort(), excludedSecrets };
 }
 
+// ── Deterministic, cross-platform tar+gzip ─────────────────────────────────────────────────────
+// We DON'T shell out to the system `tar`: Windows (and macOS) ship bsdtar, which rejects the GNU
+// --sort/--mtime/--numeric-owner flags this used to rely on ("Option --sort=name is not supported").
+// Instead we emit a plain USTAR archive of the already-sorted file list — zeroed uid/gid/mtime,
+// normalized 0644 mode — then gzip with a zeroed header. Same content → same sha256 on any OS, and a
+// node extracts it with a standard `tar -xzf` (only the GNU CREATE flags were the problem; extract is
+// portable). The tarball never needs to be byte-identical to circuit-agent-cloud — its verifier only
+// checks that the bytes hash to the signed manifest.sha256, not how they were packed.
+function ustarHeader(name, size, mode = 0o644) {
+  const buf = Buffer.alloc(512);
+  let nm = name, prefix = '';
+  if (Buffer.byteLength(nm) > 100) {
+    let split = -1;
+    for (let p = nm.indexOf('/'); p !== -1; p = nm.indexOf('/', p + 1)) {
+      if (Buffer.byteLength(nm.slice(p + 1)) <= 100 && Buffer.byteLength(nm.slice(0, p)) <= 155) { split = p; break; }
+    }
+    if (split === -1) throw new Error(`path too long to bundle (USTAR limit): ${name}`);
+    prefix = nm.slice(0, split);
+    nm = nm.slice(split + 1);
+  }
+  buf.write(nm, 0, 100, 'utf8');
+  buf.write((mode & 0o7777).toString(8).padStart(7, '0') + '\0', 100, 8, 'ascii'); // mode
+  buf.write('0000000\0', 108, 8, 'ascii');                                          // uid 0
+  buf.write('0000000\0', 116, 8, 'ascii');                                          // gid 0
+  buf.write(size.toString(8).padStart(11, '0') + '\0', 124, 12, 'ascii');           // size
+  buf.write('00000000000\0', 136, 12, 'ascii');                                     // mtime 0
+  buf.write('        ', 148, 8, 'ascii');                                            // chksum: spaces for the sum
+  buf.write('0', 156, 1, 'ascii');                                                   // typeflag: regular file
+  buf.write('ustar\0', 257, 6, 'ascii');                                            // magic
+  buf.write('00', 263, 2, 'ascii');                                                 // version
+  if (prefix) buf.write(prefix, 345, 155, 'utf8');
+  let sum = 0;
+  for (let i = 0; i < 512; i++) sum += buf[i];
+  buf.write((sum & 0o777777).toString(8).padStart(6, '0') + '\0 ', 148, 8, 'ascii'); // 6 octal + NUL + space
+  return buf;
+}
+
+function tarGzip(dir, files) {
+  const blocks = [];
+  for (const rel of files) {
+    const data = fs.readFileSync(path.join(dir, rel)); // rel is already '/'-separated (see listIncluded)
+    blocks.push(ustarHeader(rel, data.length), data);
+    const pad = (512 - (data.length % 512)) % 512;
+    if (pad) blocks.push(Buffer.alloc(pad));
+  }
+  blocks.push(Buffer.alloc(1024)); // two zero blocks terminate the archive
+  const gz = zlib.gzipSync(Buffer.concat(blocks), { level: 9 });
+  gz.writeUInt32LE(0, 4); // zero the gzip header MTIME (bytes 4-7) …
+  gz[9] = 0xff;           // … and the OS byte, so output is identical across machines/OSes
+  return gz;
+}
+
 function packDir(dir) {
   const { files, excludedSecrets } = listIncluded(dir);
   if (!files.length) throw new Error('nothing to bundle — every file was excluded by ignore rules');
-  const stamp = crypto.randomBytes(6).toString('hex');
-  const listFile = path.join(os.tmpdir(), `cbundle-${stamp}.list`);
-  const tmp = path.join(os.tmpdir(), `cbundle-${stamp}.tgz`);
-  fs.writeFileSync(listFile, `${files.join('\n')}\n`);
-  try {
-    // Explicit file list (not '.') so nothing sneaks in; GNU-tar flags give a deterministic sha256.
-    execFileSync('tar', ['--sort=name', '--owner=0', '--group=0', '--numeric-owner', '--mtime=@0',
-      '--no-recursion', '-czf', tmp, '-C', dir, '-T', listFile], { stdio: 'pipe' });
-    return { bytes: fs.readFileSync(tmp), files, excludedSecrets };
-  } finally {
-    fs.rmSync(tmp, { force: true });
-    fs.rmSync(listFile, { force: true });
-  }
+  return { bytes: tarGzip(dir, files), files, excludedSecrets };
 }
 
 // The local content-addressed store (B1 own-fleet backend). On a shared fs the node reads it directly;
