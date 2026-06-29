@@ -119,6 +119,9 @@ export const agents = {
         MAX_AGENTS: String(budget.maxAgents ?? 5),
         MAX_MEMORY_MB: String(budget.maxMemoryMb ?? 512),
         CIRCUIT_AGENT_DIR: config.circuitAgentDir,
+        // Pull bundle bytes from the control plane's shared store (so a bundle published on ANY machine
+        // runs here). Don't override an explicit operator setting.
+        CIRCUIT_BUNDLE_STORE_URL: process.env.CIRCUIT_BUNDLE_STORE_URL || `${config.endpoints.controlPlane.replace(/\/$/, '')}/v1/bundles`,
       };
       const child = spawn(process.execPath, [hostScript], { detached: true, stdio: ['ignore', out, out], env });
       fs.writeFileSync(HOST_PID, String(child.pid));

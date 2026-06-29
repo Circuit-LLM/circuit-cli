@@ -224,6 +224,7 @@ export default {
         { value: 'deploy', label: `${sym.node}  Deploy to Mesh`, hint: 'publish a local folder to the cloud' },
         { value: 'start', label: `${sym.arrow}  Start an agent` },
         { value: 'stop', label: `${sym.cross}  Stop an agent` },
+        { value: 'destroy', label: `${sym.cross}  Delete an agent`, hint: 'stop + remove its record' },
         { value: 'host', label: `${sym.node}  Contribute capacity`, hint: 'lend CPU to the cloud' },
         { value: 'vault', label: `${sym.diamond}  Vault (non-custodial)`, hint: 'devnet · beta' },
         { value: 'back', label: `${sym.chevron}  Back` },
@@ -255,6 +256,22 @@ export default {
           const sp = spinner(`${choice}…`);
           try { await agents[choice](pick); sp.success(`${pick} ${choice === 'start' ? 'started' : 'stopped'}`); } catch (e) { sp.error(e.message); }
         });
+      } else if (choice === 'destroy') {
+        const list = await agents.list();
+        if (!list.length) { await renderList(ctx); continue; }
+        const pick = await menuSelect(c.text('Delete which agent?'), list.map((a) => ({ value: a.name, label: `${a.name}  ${c.dim(a.state)}` })));
+        if (!(await askConfirm(`Delete "${pick}"? Stops it and removes its record.`, { initialValue: false }))) continue;
+        let force = false, retry = true;
+        while (retry) {
+          retry = false;
+          let fundsErr = false;
+          await screenFrame({ status: ctx.status, footer: 'press any key to continue' }, async () => {
+            const sp = spinner('Deleting…');
+            try { await agents.destroy(pick, { force }); sp.success(`Deleted ${pick}`); }
+            catch (e) { sp.error(e.message); fundsErr = !force && /not-empty|still holds|funds/.test(e.message); }
+          });
+          if (fundsErr && (await askConfirm(`"${pick}" still holds funds — force-delete and ABANDON them? (irreversible)`, { initialValue: false }))) { force = true; retry = true; }
+        }
       } else if (choice === 'host') {
         const st = agents.host.status();
         if (st.running) {
