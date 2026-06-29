@@ -419,7 +419,7 @@ export default {
       } catch (e) { sp.error(e.message); }
     });
     cmd.command('export <name>').description('export the agent wallet’s PRIVATE KEY (take full custody)').option('-y, --yes', 'skip confirmation').action(async (name, o) => {
-      console.log(c.warn(`  ${sym.bolt}  This reveals the wallet’s private key. After export the off-box "can’t be stolen" guarantee`));
+      console.log(c.warn(`  ${sym.bolt}  This reveals the wallet’s private key. After export the off-box "can’t be stolen" property`));
       console.log(c.warn('     no longer holds for this wallet — store it like any hot-wallet key. Stop the agent first.'));
       if (!o.yes) {
         if (!process.stdin.isTTY) { console.log(c.warn('  refusing to export without --yes (non-interactive)')); return; }

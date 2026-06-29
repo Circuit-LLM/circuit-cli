@@ -206,7 +206,7 @@ An agent declares its **required** tier; the scheduler only places it on nodes w
 - **Positions are on-chain** — they're the agent wallet's balances. The agent reconstructs them on boot, so a reschedule loses nothing material. This is the core resilience trick.
 - **Config + cooldowns + journal** live in the control-plane datastore, encrypted; checkpointed periodically.
 - **Failover:** missed heartbeats → mark agent unhealthy → reschedule → new node pulls config + reconstructs from chain + resumes. **Idempotent** — the agent re-derives state, so no double-trade.
-- **At-most-one** guarantee: the control plane fences an agent (lease/token) so a partitioned old node can't keep trading after reassignment.
+- **At-most-one** invariant: the control plane fences an agent (lease/token) so a partitioned old node can't keep trading after reassignment.
 
 ---
 
