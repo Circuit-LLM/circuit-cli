@@ -219,11 +219,14 @@ export default {
       clearScreen();
       slimHeader(ctx.status);
       const choice = await menuSelect(c.text('Agents'), [
-        { value: 'list', label: `${sym.diamond}  View agents`, hint: 'status + P&L' },
+        { value: 'list', label: `${sym.diamond}  View agents`, hint: 'all agents · status + P&L' },
+        { value: 'status', label: `${sym.diamond}  Agent details`, hint: 'one agent · custody, wallet, P&L' },
+        { value: 'logs', label: `${sym.arrow}  View logs`, hint: 'recent agent output' },
         { value: 'create', label: `${sym.spark}  Create an agent`, hint: 'local or cloud' },
         { value: 'deploy', label: `${sym.node}  Deploy to Mesh`, hint: 'publish a local folder to the cloud' },
         { value: 'start', label: `${sym.arrow}  Start an agent` },
         { value: 'stop', label: `${sym.cross}  Stop an agent` },
+        { value: 'withdraw', label: `${sym.spark}  Withdraw funds`, hint: 'pull the agent wallet back to you' },
         { value: 'destroy', label: `${sym.cross}  Delete an agent`, hint: 'stop + remove its record' },
         { value: 'host', label: `${sym.node}  Contribute capacity`, hint: 'lend CPU to the cloud' },
         { value: 'vault', label: `${sym.diamond}  Vault (non-custodial)`, hint: 'devnet · beta' },
@@ -232,6 +235,32 @@ export default {
       if (choice === 'back') return;
       if (choice === 'vault') { await vaultExplainer(ctx); continue; }
       if (choice === 'deploy') { await deployFlow(ctx); continue; }
+      if (choice === 'status' || choice === 'logs') {
+        const list = await agents.list();
+        if (!list.length) { await renderList(ctx); continue; }
+        const pick = await menuSelect(c.text('Which agent?'), list.map((a) => ({ value: a.name, label: `${a.name}  ${c.dim(a.state)}` })));
+        if (choice === 'status') await showStatus(ctx, pick, false);
+        else await showLogs(ctx, pick, 25, false);
+        continue;
+      }
+      if (choice === 'withdraw') {
+        const list = await agents.list();
+        if (!list.length) { await renderList(ctx); continue; }
+        const pick = await menuSelect(c.text('Withdraw from which agent?'), list.map((a) => ({ value: a.name, label: `${a.name}  ${c.dim(a.state)}` })));
+        const amtStr = ((await askText('Amount in SOL (blank = all)', { placeholder: 'all' })) || '').trim();
+        let amount;
+        if (amtStr) { amount = parseFloat(amtStr); if (!(amount > 0)) continue; }
+        if (!(await askConfirm(`Withdraw ${amount ? amount + ' SOL' : 'ALL SOL'} from "${pick}" back to your owner wallet?`, { initialValue: false }))) continue;
+        await screenFrame({ status: ctx.status, footer: 'press any key to continue' }, async () => {
+          const sp = spinner('Withdrawing…');
+          try {
+            const r = await agents.withdraw(pick, amount);
+            sp.success(`Withdrew ${(Number(r.lamports) / 1e9).toFixed(6)} SOL → ${r.owner}`);
+            console.log('  ' + c.dim('tx ') + c.accent(r.signature));
+          } catch (e) { sp.error(e.message); }
+        });
+        continue;
+      }
       if (choice === 'list') await renderList(ctx);
       else if (choice === 'create') {
         const name = await askText('Agent name', { placeholder: 'e.g. alpha' });
