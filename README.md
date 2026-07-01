@@ -10,16 +10,22 @@
 
 <div align="center">
 
-# circuit-cli
+# circuit-cli · RETIRED
+
+> ## ⛔ This repository is retired
+>
+> `circuit-cli` has been folded into the **[circuit-sdk](https://github.com/Circuit-LLM/circuit-sdk)** monorepo, where it now lives at **`apps/cli`** — the same terminal, rebuilt on the published `@circuit/*` packages. This repo is kept read-only for history; all further development happens in circuit-sdk.
+>
+> **→ Go to [circuit-sdk/apps/cli](https://github.com/Circuit-LLM/circuit-sdk/tree/main/apps/cli)**
 
 **The command line for the Circuit LLM decentralized intelligence network. Chat with the decentralized 72B, manage the CIRC that pays for it, watch the mesh and the agent swarm, query on-chain data, and contribute a GPU — all from one beautiful terminal.**
 
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org)
 [![Version](https://img.shields.io/badge/version-0.2.0-blue)](https://github.com/Circuit-LLM/circuit-cli/releases)
-[![Status](https://img.shields.io/badge/status-beta-orange)](https://github.com/Circuit-LLM/circuit-cli)
+[![Status](https://img.shields.io/badge/status-retired-lightgrey)](https://github.com/Circuit-LLM/circuit-sdk/tree/main/apps/cli)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
-> **Beta software.** circuit-cli is under active development. Expect breaking changes between releases, incomplete features, and rough edges. Chat spends real CIRC and agents trade real funds — start small until you're comfortable with how it behaves.
+> **Retired.** Development moved to [circuit-sdk/apps/cli](https://github.com/Circuit-LLM/circuit-sdk/tree/main/apps/cli). The notes below describe the standalone tool as it stood at retirement.
 
 [Website](https://circuitllm.xyz) · [OPS Terminal](https://circuitllm.xyz/data) · [Telegram](https://t.me/circuitllm) · [X / Twitter](https://x.com/CircuitLLM)
 
